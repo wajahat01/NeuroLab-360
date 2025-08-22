@@ -61,12 +61,25 @@ export const AuthProvider = ({ children }) => {
     if (error) throw error;
   };
 
+  const getAuthHeaders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error('No valid session found');
+    }
+    
+    return {
+      'Authorization': `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    };
+  };
+
   const value = {
     user,
     loading,
     signIn,
     signUp,
     signOut,
+    getAuthHeaders,
   };
 
   return (
