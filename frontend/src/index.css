@@ -343,6 +343,132 @@
   .grid-responsive-3 {
     @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6;
   }
+
+  /* Dashboard Layout Stability Classes */
+  .dashboard-container {
+    @apply min-h-screen;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    grid-template-areas: 
+      "header"
+      "content";
+  }
+
+  .dashboard-content {
+    grid-area: content;
+    @apply space-y-6 px-responsive py-responsive;
+    min-height: calc(100vh - 4rem); /* Account for header height */
+  }
+
+  .dashboard-header {
+    grid-area: header;
+    @apply bg-white border-b border-gray-200;
+    min-height: 4rem;
+  }
+
+  /* Fixed Grid Layouts for Dashboard Sections */
+  .dashboard-stats-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6;
+    min-height: 8rem; /* Prevent layout shift during loading */
+  }
+
+  .dashboard-charts-grid {
+    @apply grid grid-cols-1 lg:grid-cols-2 gap-6;
+    min-height: 20rem; /* Prevent layout shift during chart loading */
+  }
+
+  .dashboard-bottom-grid {
+    @apply grid grid-cols-1 lg:grid-cols-3 gap-6;
+    min-height: 24rem; /* Prevent layout shift during content loading */
+  }
+
+  /* Stable Card Dimensions */
+  .dashboard-stat-card {
+    @apply bg-white rounded-lg shadow p-6;
+    min-height: 8rem;
+    display: flex;
+    align-items: center;
+  }
+
+  .dashboard-chart-card {
+    @apply bg-white rounded-lg shadow p-6;
+    min-height: 20rem;
+  }
+
+  .dashboard-experiments-card {
+    @apply bg-white rounded-lg shadow;
+    min-height: 24rem;
+  }
+
+  .dashboard-insights-card {
+    @apply bg-white rounded-lg shadow;
+    min-height: 24rem;
+  }
+
+  /* Smooth Fade-in Transitions */
+  .fade-in-content {
+    animation: fadeInContent 0.3s ease-out forwards;
+    opacity: 0;
+  }
+
+  .fade-in-delayed {
+    animation: fadeInContent 0.3s ease-out 0.1s forwards;
+    opacity: 0;
+  }
+
+  .fade-in-stagger-1 {
+    animation: fadeInContent 0.3s ease-out 0.1s forwards;
+    opacity: 0;
+  }
+
+  .fade-in-stagger-2 {
+    animation: fadeInContent 0.3s ease-out 0.2s forwards;
+    opacity: 0;
+  }
+
+  .fade-in-stagger-3 {
+    animation: fadeInContent 0.3s ease-out 0.3s forwards;
+    opacity: 0;
+  }
+
+  .fade-in-stagger-4 {
+    animation: fadeInContent 0.3s ease-out 0.4s forwards;
+    opacity: 0;
+  }
+
+  @keyframes fadeInContent {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Layout Shift Prevention */
+  .prevent-layout-shift {
+    contain: layout style;
+  }
+
+  .stable-dimensions {
+    width: 100%;
+    height: auto;
+    min-height: inherit;
+  }
+
+  /* Period Selector Stable Layout */
+  .dashboard-period-selector {
+    @apply flex justify-end;
+    min-height: 2.5rem;
+  }
+
+  /* Performance Trends Stable Layout */
+  .dashboard-performance-chart {
+    min-height: 20rem;
+    @apply bg-white rounded-lg shadow p-6;
+  }
   
   /* Status indicators */
   .status-dot {
@@ -462,6 +588,10 @@
 /* Animation utility classes */
 .animate-fade-in {
   animation: fade-in 0.5s ease-out;
+}
+
+.fade-in {
+  animation: fade-in 0.3s ease-out;
 }
 
 .animate-slide-up {

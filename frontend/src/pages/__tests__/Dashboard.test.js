@@ -363,4 +363,58 @@ describe('Dashboard', () => {
 
     expect(mockNavigate).toHaveBeenCalledWith('/experiments');
   });
+
+  describe('Performance optimizations', () => {
+    it('should be wrapped with React.memo to prevent unnecessary re-renders', () => {
+      // Verify that Dashboard component is memoized
+      expect(Dashboard.$$typeof).toBeDefined();
+      expect(Dashboard.type || Dashboard).toBeDefined();
+    });
+
+    it('should handle rapid state changes without performance degradation', () => {
+      const mockSummaryData = {
+        total_experiments: 10,
+        experiments_by_type: { 'Type A': 6 },
+        recent_activity: { last_7_days: 3, completion_rate: 80 },
+      };
+
+      mockUseDashboardSummary.mockReturnValue({
+        data: mockSummaryData,
+        loading: false,
+        error: null,
+        refetch: jest.fn(),
+      });
+
+      mockUseDashboardCharts.mockReturnValue({
+        data: { activity_timeline: [] },
+        loading: false,
+        error: null,
+        refetch: jest.fn(),
+      });
+
+      mockUseRecentExperiments.mockReturnValue({
+        data: { experiments: [], insights: [] },
+        loading: false,
+        error: null,
+        refetch: jest.fn(),
+      });
+
+      const startTime = performance.now();
+      
+      renderWithRouter(<Dashboard />);
+
+      // Simulate rapid period changes
+      const buttons = ['7 Days', '30 Days', '90 Days', 'All Time'];
+      buttons.forEach(buttonText => {
+        const button = screen.getByText(buttonText);
+        fireEvent.click(button);
+      });
+
+      const endTime = performance.now();
+      const totalTime = endTime - startTime;
+
+      // Should handle rapid changes efficiently (adjust threshold as needed)
+      expect(totalTime).toBeLessThan(300); // 300ms for render + 4 state changes (adjusted for test environment)
+    });
+  });
 });

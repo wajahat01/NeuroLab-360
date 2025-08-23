@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   DataChart, 
@@ -15,7 +15,7 @@ import {
   useRecentExperiments 
 } from '../hooks/useDashboard';
 
-const Dashboard = () => {
+const Dashboard = memo(() => {
   const navigate = useNavigate();
   const [selectedPeriod, setSelectedPeriod] = useState('30d');
   
@@ -40,23 +40,46 @@ const Dashboard = () => {
     refetch: refetchRecent 
   } = useRecentExperiments(5, 7);
 
-  const handlePeriodChange = (period) => {
+  // Memoized callback functions to prevent child re-renders
+  const handlePeriodChange = useCallback((period) => {
     setSelectedPeriod(period);
-  };
+  }, []);
 
-  const handleRetryAll = () => {
+  const handleRetryAll = useCallback(() => {
     refetchSummary();
     refetchCharts();
     refetchRecent();
-  };
+  }, [refetchSummary, refetchCharts, refetchRecent]);
+
+  const handleNavigateToExperiments = useCallback(() => {
+    navigate('/experiments');
+  }, [navigate]);
+
+  // Memoized loading state calculation to prevent unnecessary re-renders
+  const isInitialLoading = useMemo(() => {
+    return summaryLoading && chartsLoading && recentLoading;
+  }, [summaryLoading, chartsLoading, recentLoading]);
+
+  // Memoized error state calculation
+  const hasAllErrors = useMemo(() => {
+    return summaryError && chartsError && recentError;
+  }, [summaryError, chartsError, recentError]);
+
+  // Memoized period options to prevent recreation on every render
+  const periodOptions = useMemo(() => [
+    { value: '7d', label: '7 Days' },
+    { value: '30d', label: '30 Days' },
+    { value: '90d', label: '90 Days' },
+    { value: 'all', label: 'All Time' }
+  ], []);
 
   // Show loading skeleton while initial data loads
-  if (summaryLoading && chartsLoading && recentLoading) {
+  if (isInitialLoading) {
     return <DashboardSkeleton />;
   }
 
   // Show error if all requests failed
-  if (summaryError && chartsError && recentError) {
+  if (hasAllErrors) {
     return (
       <div className="space-y-6">
         <div>
@@ -75,9 +98,9 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="dashboard-content prevent-layout-shift">
       {/* Header */}
-      <div>
+      <div className="fade-in-content">
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
         <p className="mt-2 text-gray-600">
           Welcome to NeuroLab 360 - Your neurological experiment platform
@@ -85,7 +108,7 @@ const Dashboard = () => {
       </div>
 
       {/* Summary Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="dashboard-stats-grid">
         {summaryLoading ? (
           [...Array(4)].map((_, i) => <StatCardSkeleton key={i} />)
         ) : summaryError ? (
@@ -99,38 +122,46 @@ const Dashboard = () => {
           </div>
         ) : summaryData ? (
           <>
-            <StatCard
-              title="Total Experiments"
-              value={summaryData.total_experiments}
-              icon="🧪"
-              color="blue"
-            />
-            <StatCard
-              title="Completion Rate"
-              value={`${summaryData.recent_activity?.completion_rate || 0}%`}
-              icon="✅"
-              color="green"
-            />
-            <StatCard
-              title="Recent Activity"
-              value={summaryData.recent_activity?.last_7_days || 0}
-              subtitle="Last 7 days"
-              icon="📈"
-              color="purple"
-            />
-            <StatCard
-              title="Experiment Types"
-              value={Object.keys(summaryData.experiments_by_type || {}).length}
-              icon="🔬"
-              color="orange"
-            />
+            <div className="fade-in-stagger-1">
+              <StatCard
+                title="Total Experiments"
+                value={summaryData.total_experiments}
+                icon="🧪"
+                color="blue"
+              />
+            </div>
+            <div className="fade-in-stagger-2">
+              <StatCard
+                title="Completion Rate"
+                value={`${summaryData.recent_activity?.completion_rate || 0}%`}
+                icon="✅"
+                color="green"
+              />
+            </div>
+            <div className="fade-in-stagger-3">
+              <StatCard
+                title="Recent Activity"
+                value={summaryData.recent_activity?.last_7_days || 0}
+                subtitle="Last 7 days"
+                icon="📈"
+                color="purple"
+              />
+            </div>
+            <div className="fade-in-stagger-4">
+              <StatCard
+                title="Experiment Types"
+                value={Object.keys(summaryData.experiments_by_type || {}).length}
+                icon="🔬"
+                color="orange"
+              />
+            </div>
           </>
         ) : (
           <div className="col-span-full">
             <EmptyState 
               title="No experiment data"
               description="Start by running your first experiment to see dashboard statistics."
-              action={() => navigate('/experiments')}
+              action={handleNavigateToExperiments}
               actionLabel="Create Experiment"
             />
           </div>
@@ -138,38 +169,22 @@ const Dashboard = () => {
       </div>
 
       {/* Period Selector */}
-      {!summaryError && summaryData && (
-        <div className="flex justify-end">
-          <div className="inline-flex rounded-md shadow-sm" role="group">
-            {[
-              { value: '7d', label: '7 Days' },
-              { value: '30d', label: '30 Days' },
-              { value: '90d', label: '90 Days' },
-              { value: 'all', label: 'All Time' }
-            ].map((period) => (
-              <button
-                key={period.value}
-                onClick={() => handlePeriodChange(period.value)}
-                className={`px-4 py-2 text-sm font-medium border ${
-                  selectedPeriod === period.value
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                } ${
-                  period.value === '7d' ? 'rounded-l-md' : 
-                  period.value === 'all' ? 'rounded-r-md' : ''
-                } focus:outline-none focus:ring-2 focus:ring-blue-500`}
-              >
-                {period.label}
-              </button>
-            ))}
+      <div className="dashboard-period-selector">
+        {!summaryError && summaryData && (
+          <div className="fade-in-delayed">
+            <PeriodSelector 
+              selectedPeriod={selectedPeriod}
+              periodOptions={periodOptions}
+              onPeriodChange={handlePeriodChange}
+            />
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="dashboard-charts-grid">
         {/* Activity Timeline Chart */}
-        <div>
+        <div className="dashboard-chart-card fade-in-stagger-1">
           {chartsLoading ? (
             <ChartSkeleton height={300} />
           ) : chartsError ? (
@@ -189,7 +204,7 @@ const Dashboard = () => {
               color="#3B82F6"
             />
           ) : (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="stable-dimensions">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Experiment Activity</h3>
               <EmptyState 
                 title="No activity data"
@@ -200,7 +215,7 @@ const Dashboard = () => {
         </div>
 
         {/* Experiment Type Distribution */}
-        <div>
+        <div className="dashboard-chart-card fade-in-stagger-2">
           {chartsLoading ? (
             <ChartSkeleton height={300} />
           ) : chartsError ? (
@@ -222,7 +237,7 @@ const Dashboard = () => {
               height={300}
             />
           ) : (
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="stable-dimensions">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Experiment Types</h3>
               <EmptyState 
                 title="No type data"
@@ -235,7 +250,7 @@ const Dashboard = () => {
 
       {/* Performance Trends Chart */}
       {chartsData?.performance_trends && chartsData.performance_trends.length > 0 && (
-        <div>
+        <div className="dashboard-performance-chart fade-in-delayed">
           <DataChart
             type="multiline"
             data={chartsData.performance_trends}
@@ -248,14 +263,14 @@ const Dashboard = () => {
       )}
 
       {/* Recent Experiments and Insights */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="dashboard-bottom-grid">
         {/* Recent Experiments */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-lg shadow">
+          <div className="dashboard-experiments-card fade-in-stagger-1">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-medium text-gray-900">Recent Experiments</h3>
             </div>
-            <div className="p-6">
+            <div className="p-6 stable-dimensions">
               {recentLoading ? (
                 <div className="space-y-4">
                   {[...Array(3)].map((_, i) => (
@@ -278,7 +293,7 @@ const Dashboard = () => {
                   ))}
                   <div className="pt-4 border-t border-gray-200">
                     <button
-                      onClick={() => navigate('/experiments')}
+                      onClick={handleNavigateToExperiments}
                       className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                     >
                       View all experiments →
@@ -289,7 +304,7 @@ const Dashboard = () => {
                 <EmptyState 
                   title="No recent experiments"
                   description="Start running experiments to see them here."
-                  action={() => navigate('/experiments')}
+                  action={handleNavigateToExperiments}
                   actionLabel="Create Experiment"
                 />
               )}
@@ -299,11 +314,11 @@ const Dashboard = () => {
 
         {/* Insights Panel */}
         <div>
-          <div className="bg-white rounded-lg shadow">
+          <div className="dashboard-insights-card fade-in-stagger-2">
             <div className="px-6 py-4 border-b border-gray-200">
               <h3 className="text-lg font-medium text-gray-900">Insights</h3>
             </div>
-            <div className="p-6">
+            <div className="p-6 stable-dimensions">
               {recentLoading ? (
                 <div className="space-y-4">
                   {[...Array(2)].map((_, i) => (
@@ -328,10 +343,34 @@ const Dashboard = () => {
       </div>
     </div>
   );
-};
+});
+
+// Memoized Period Selector component
+const PeriodSelector = memo(({ selectedPeriod, periodOptions, onPeriodChange }) => (
+  <div className="flex justify-end">
+    <div className="inline-flex rounded-md shadow-sm" role="group">
+      {periodOptions.map((period) => (
+        <button
+          key={period.value}
+          onClick={() => onPeriodChange(period.value)}
+          className={`px-4 py-2 text-sm font-medium border ${
+            selectedPeriod === period.value
+              ? 'bg-blue-600 text-white border-blue-600'
+              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+          } ${
+            period.value === '7d' ? 'rounded-l-md' : 
+            period.value === 'all' ? 'rounded-r-md' : ''
+          } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+        >
+          {period.label}
+        </button>
+      ))}
+    </div>
+  </div>
+));
 
 // Helper Components
-const StatCard = ({ title, value, subtitle, icon, color = 'blue' }) => {
+const StatCard = memo(({ title, value, subtitle, icon, color = 'blue' }) => {
   const colorClasses = {
     blue: 'text-blue-600',
     green: 'text-green-600',
@@ -341,8 +380,8 @@ const StatCard = ({ title, value, subtitle, icon, color = 'blue' }) => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="flex items-center">
+    <div className="dashboard-stat-card stable-dimensions">
+      <div className="flex items-center w-full">
         <div className="flex-shrink-0">
           <span className="text-2xl">{icon}</span>
         </div>
@@ -356,9 +395,9 @@ const StatCard = ({ title, value, subtitle, icon, color = 'blue' }) => {
       </div>
     </div>
   );
-};
+});
 
-const ExperimentItem = ({ experiment }) => {
+const ExperimentItem = memo(({ experiment }) => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'completed': return 'bg-green-100 text-green-800';
@@ -394,9 +433,9 @@ const ExperimentItem = ({ experiment }) => {
       </span>
     </div>
   );
-};
+});
 
-const InsightCard = ({ insight }) => {
+const InsightCard = memo(({ insight }) => {
   return (
     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
       <div className="flex items-start space-x-3">
@@ -407,6 +446,6 @@ const InsightCard = ({ insight }) => {
       </div>
     </div>
   );
-};
+});
 
 export default Dashboard;
