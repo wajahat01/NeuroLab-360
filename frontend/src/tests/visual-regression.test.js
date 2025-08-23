@@ -6,9 +6,13 @@
  */
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import '@testing-library/jest-dom';
+import { AuthProvider } from '../contexts/AuthContext';
+import Dashboard from '../pages/Dashboard';
+import Login from '../pages/Login';
+import { PerformanceProfiler, LoginTransitionTracker } from '../utils/performanceProfiler';
 
 // Import components to test
 import { 
@@ -272,6 +276,121 @@ describe('Visual Regression Tests', () => {
   });
 });
 
+// Visual regression tests for login-to-dashboard transition
+describe('Login to Dashboard Visual Regression', () => {
+  // Mock Supabase
+  beforeEach(() => {
+    global.fetch = jest.fn();
+    jest.clearAllMocks();
+  });
+
+  test('login page renders consistently', async () => {
+    const { container } = render(
+      <RouterWrapper>
+        <PerformanceProfiler id="login-page">
+          <Login />
+        </PerformanceProfiler>
+      </RouterWrapper>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('login-form')).toBeInTheDocument();
+    });
+
+    expect(container.firstChild).toMatchSnapshot('login-page');
+  });
+
+  test('dashboard loading state renders consistently', async () => {
+    // Mock loading state
+    const mockUser = { id: 'test-user', email: 'test@example.com' };
+    
+    const { container } = render(
+      <RouterWrapper>
+        <AuthProvider>
+          <PerformanceProfiler id="dashboard-loading">
+            <Dashboard />
+          </PerformanceProfiler>
+        </AuthProvider>
+      </RouterWrapper>
+    );
+
+    // Capture loading state
+    expect(container.firstChild).toMatchSnapshot('dashboard-loading-state');
+  });
+
+  test('dashboard loaded state renders consistently', async () => {
+    const mockUser = { id: 'test-user', email: 'test@example.com' };
+    
+    // Mock successful API responses
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        total_experiments: 5,
+        experiments_by_type: { heart_rate: 2, reaction_time: 3 },
+        experiments_by_status: { completed: 4, running: 1 },
+        recent_activity: { completion_rate: 80 },
+        average_metrics: { heart_rate: 75, reaction_time: 250 },
+        last_updated: new Date().toISOString()
+      })
+    });
+
+    const { container } = render(
+      <RouterWrapper>
+        <AuthProvider>
+          <PerformanceProfiler id="dashboard-loaded">
+            <Dashboard />
+          </PerformanceProfiler>
+        </AuthProvider>
+      </RouterWrapper>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-container')).toBeInTheDocument();
+    });
+
+    expect(container.firstChild).toMatchSnapshot('dashboard-loaded-state');
+  });
+
+  test('transition states maintain visual consistency', async () => {
+    const transitionTracker = LoginTransitionTracker.startLoginToDashboard();
+    
+    // Test login form
+    const { container: loginContainer, rerender } = render(
+      <RouterWrapper>
+        <PerformanceProfiler id="transition-test">
+          <Login />
+        </PerformanceProfiler>
+      </RouterWrapper>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('login-form')).toBeInTheDocument();
+    });
+
+    transitionTracker.addMarker('login-form-rendered');
+
+    // Simulate transition to dashboard
+    await act(async () => {
+      rerender(
+        <RouterWrapper>
+          <AuthProvider>
+            <PerformanceProfiler id="transition-test">
+              <Dashboard />
+            </PerformanceProfiler>
+          </AuthProvider>
+        </RouterWrapper>
+      );
+    });
+
+    transitionTracker.addMarker('dashboard-rendered');
+    const transition = transitionTracker.end();
+
+    // Verify transition completed within performance budget
+    expect(transition.duration).toBeLessThan(2000);
+    expect(transition.markers).toHaveLength(2);
+  });
+});
+
 // Snapshot tests for visual consistency
 describe('Component Snapshots', () => {
   test('LoadingSpinner snapshot', () => {
@@ -296,5 +415,32 @@ describe('Component Snapshots', () => {
   test('StatCardSkeleton snapshot', () => {
     const { container } = render(<StatCardSkeleton />);
     expect(container.firstChild).toMatchSnapshot();
+  });
+
+  test('Dashboard skeleton layout snapshot', () => {
+    const { container } = render(
+      <RouterWrapper>
+        <div className="min-h-screen bg-gray-50">
+          <div className="animate-pulse">
+            <div className="h-16 bg-white border-b border-gray-200">
+              <div className="h-4 bg-gray-300 rounded w-32 mt-6 ml-6"></div>
+            </div>
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="h-32 bg-white rounded-lg shadow">
+                    <div className="p-4 space-y-3">
+                      <div className="h-4 bg-gray-300 rounded w-3/4"></div>
+                      <div className="h-8 bg-gray-300 rounded w-1/2"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </RouterWrapper>
+    );
+    expect(container.firstChild).toMatchSnapshot('dashboard-skeleton');
   });
 });

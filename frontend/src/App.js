@@ -7,9 +7,11 @@ import Experiments from './pages/Experiments';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
+import DashboardErrorBoundary from './components/DashboardErrorBoundary';
 import ToastProvider from './components/ToastProvider';
 import { NotFoundPage } from './pages/ErrorPages';
 import { AuthProvider } from './contexts/AuthContext';
+import { AppPerformanceMonitor } from './components/PerformanceMonitor';
 
 // Layout component for authenticated pages
 const AuthenticatedLayout = ({ children }) => {
@@ -28,53 +30,55 @@ const AuthenticatedLayout = ({ children }) => {
 function App() {
   return (
     <ErrorBoundary showDetails={process.env.NODE_ENV === 'development'}>
-      <AuthProvider>
-        <ToastProvider>
-          <Router>
-            <div className="App">
-              <Toaster 
-                position="top-right"
-                toastOptions={{
-                  duration: 4000,
-                  style: {
-                    background: '#363636',
-                    color: '#fff',
-                  },
-                }}
-              />
-              <Routes>
-                <Route path="/login" element={<Login />} />
-                <Route 
-                  path="/dashboard" 
-                  element={
-                    <ProtectedRoute>
-                      <AuthenticatedLayout>
-                        <ErrorBoundary>
-                          <Dashboard />
-                        </ErrorBoundary>
-                      </AuthenticatedLayout>
-                    </ProtectedRoute>
-                  } 
+      <AppPerformanceMonitor>
+        <AuthProvider>
+          <ToastProvider>
+            <Router>
+              <div className="App">
+                <Toaster 
+                  position="top-right"
+                  toastOptions={{
+                    duration: 4000,
+                    style: {
+                      background: '#363636',
+                      color: '#fff',
+                    },
+                  }}
                 />
-                <Route 
-                  path="/experiments" 
-                  element={
-                    <ProtectedRoute>
-                      <AuthenticatedLayout>
-                        <ErrorBoundary>
-                          <Experiments />
-                        </ErrorBoundary>
-                      </AuthenticatedLayout>
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route path="*" element={<NotFoundPage />} />
-              </Routes>
-            </div>
-          </Router>
-        </ToastProvider>
-      </AuthProvider>
+                <Routes>
+                  <Route path="/login" element={<Login />} />
+                  <Route 
+                    path="/dashboard" 
+                    element={
+                      <ProtectedRoute>
+                        <AuthenticatedLayout>
+                          <DashboardErrorBoundary>
+                            <Dashboard />
+                          </DashboardErrorBoundary>
+                        </AuthenticatedLayout>
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/experiments" 
+                    element={
+                      <ProtectedRoute>
+                        <AuthenticatedLayout>
+                          <ErrorBoundary>
+                            <Experiments />
+                          </ErrorBoundary>
+                        </AuthenticatedLayout>
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="*" element={<NotFoundPage />} />
+                </Routes>
+              </div>
+            </Router>
+          </ToastProvider>
+        </AuthProvider>
+      </AppPerformanceMonitor>
     </ErrorBoundary>
   );
 }

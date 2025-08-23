@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import useExperiments from '../hooks/useExperiments';
+import { useOptimizedExperiments } from '../hooks/useOptimizedExperiments';
 import ExperimentCard from '../components/ExperimentCard';
 import ExperimentForm from '../components/ExperimentForm';
 import ExperimentDetails from '../components/ExperimentDetails';
@@ -12,9 +12,11 @@ const Experiments = () => {
     experiments,
     loading,
     error,
+    isStale,
+    isValidating,
     filters,
-    sortBy,
-    sortOrder,
+    isOptimistic,
+    isOnline,
     createExperiment,
     deleteExperiment,
     getExperimentDetails,
@@ -22,7 +24,7 @@ const Experiments = () => {
     updateSorting,
     clearFilters,
     refetch
-  } = useExperiments();
+  } = useOptimizedExperiments({ enableOptimisticUpdates: true });
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedExperiment, setSelectedExperiment] = useState(null);
@@ -79,7 +81,29 @@ const Experiments = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-4 sm:space-y-0">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Experiments</h1>
+          <div className="flex items-center space-x-3">
+            <h1 className="text-3xl font-bold text-gray-900">Experiments</h1>
+            {(isValidating || isStale) && (
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                <span>Updating...</span>
+              </div>
+            )}
+            {isOptimistic && (
+              <div className="flex items-center space-x-2 text-sm text-blue-600">
+                <div className="animate-pulse rounded-full h-2 w-2 bg-blue-600"></div>
+                <span>Saving changes...</span>
+              </div>
+            )}
+            {!isOnline && (
+              <div className="flex items-center space-x-2 text-sm text-orange-600">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-12.728 12.728m0-12.728l12.728 12.728" />
+                </svg>
+                <span>Offline</span>
+              </div>
+            )}
+          </div>
           <p className="mt-2 text-gray-600">
             Create and manage your neurological experiments
           </p>
@@ -87,6 +111,7 @@ const Experiments = () => {
         <button 
           onClick={() => setShowCreateForm(true)}
           className="btn-primary"
+          disabled={!isOnline}
         >
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />

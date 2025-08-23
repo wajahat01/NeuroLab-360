@@ -1,4 +1,4 @@
-import React, { useState, memo, useCallback, useMemo } from 'react';
+import React, { useState, memo, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   DataChart, 
@@ -9,36 +9,69 @@ import {
   ChartSkeleton,
   InsightCardSkeleton
 } from '../components';
-import { 
-  useDashboardSummary, 
-  useDashboardCharts, 
-  useRecentExperiments 
-} from '../hooks/useDashboard';
+import { useOptimizedDashboardData } from '../hooks/useOptimizedDataFetching';
+import { useEnhancedErrorHandling } from '../hooks/useEnhancedErrorHandling';
+import { useCachePreloader } from '../hooks/useEnhancedCache';
+import { DashboardPerformanceMonitor, LoginTransitionTracker } from '../components/PerformanceMonitor';
+import { usePerformanceTracking } from '../utils/performanceMonitor';
 
 const Dashboard = memo(() => {
   const navigate = useNavigate();
   const [selectedPeriod, setSelectedPeriod] = useState('30d');
   
-  const { 
-    data: summaryData, 
-    loading: summaryLoading, 
-    error: summaryError, 
-    refetch: refetchSummary 
-  } = useDashboardSummary();
+  // Performance tracking
+  const { startTransition } = usePerformanceTracking('Dashboard');
   
-  const { 
-    data: chartsData, 
-    loading: chartsLoading, 
-    error: chartsError, 
-    refetch: refetchCharts 
-  } = useDashboardCharts(selectedPeriod);
-  
-  const { 
-    data: recentData, 
-    loading: recentLoading, 
-    error: recentError, 
-    refetch: refetchRecent 
-  } = useRecentExperiments(5, 7);
+  // Use optimized data fetching with coordinated loading states
+  const {
+    summary,
+    charts,
+    recent,
+    isInitialLoading,
+    isValidating,
+    hasAllErrors,
+    hasStaleData,
+    refetchAll,
+    preloadAll
+  } = useOptimizedDashboardData();
+
+  // Enhanced error handling to prevent visual disruptions
+  const {
+    error: globalError,
+    showErrorUI,
+    handleError,
+    clearError,
+    retry
+  } = useEnhancedErrorHandling({
+    showToasts: true,
+    retainDataOnError: true,
+    errorDisplayDelay: 500,
+    autoRetry: true,
+    maxRetries: 2
+  });
+
+  // Cache preloader for better performance
+  const { preloadDashboardData } = useCachePreloader();
+
+  // Preload dashboard data on mount for better performance
+  useEffect(() => {
+    const dashboardLoadTracker = startTransition('dashboard-load');
+    preloadAll();
+    dashboardLoadTracker.end();
+  }, [preloadAll, startTransition]);
+
+  // Handle errors gracefully without visual disruptions
+  useEffect(() => {
+    if (summary.error || charts.error || recent.error) {
+      const primaryError = summary.error || charts.error || recent.error;
+      handleError(new Error(primaryError), {
+        retryCallback: () => Promise.resolve(refetchAll()),
+        silent: false
+      });
+    } else {
+      clearError();
+    }
+  }, [summary.error, charts.error, recent.error, handleError, clearError, refetchAll]);
 
   // Memoized callback functions to prevent child re-renders
   const handlePeriodChange = useCallback((period) => {
@@ -46,24 +79,13 @@ const Dashboard = memo(() => {
   }, []);
 
   const handleRetryAll = useCallback(() => {
-    refetchSummary();
-    refetchCharts();
-    refetchRecent();
-  }, [refetchSummary, refetchCharts, refetchRecent]);
+    clearError();
+    refetchAll();
+  }, [clearError, refetchAll]);
 
   const handleNavigateToExperiments = useCallback(() => {
     navigate('/experiments');
   }, [navigate]);
-
-  // Memoized loading state calculation to prevent unnecessary re-renders
-  const isInitialLoading = useMemo(() => {
-    return summaryLoading && chartsLoading && recentLoading;
-  }, [summaryLoading, chartsLoading, recentLoading]);
-
-  // Memoized error state calculation
-  const hasAllErrors = useMemo(() => {
-    return summaryError && chartsError && recentError;
-  }, [summaryError, chartsError, recentError]);
 
   // Memoized period options to prevent recreation on every render
   const periodOptions = useMemo(() => [
@@ -78,8 +100,8 @@ const Dashboard = memo(() => {
     return <DashboardSkeleton />;
   }
 
-  // Show error if all requests failed
-  if (hasAllErrors) {
+  // Show error if all requests failed and error UI should be displayed
+  if (hasAllErrors && showErrorUI) {
     return (
       <div className="space-y-6">
         <div>
@@ -89,7 +111,7 @@ const Dashboard = memo(() => {
           </p>
         </div>
         <ErrorDisplay 
-          error="Failed to load dashboard data" 
+          error={globalError || "Failed to load dashboard data"} 
           onRetry={handleRetryAll}
           title="Dashboard Unavailable"
         />
@@ -98,61 +120,76 @@ const Dashboard = memo(() => {
   }
 
   return (
-    <div className="dashboard-content prevent-layout-shift">
-      {/* Header */}
+    <DashboardPerformanceMonitor>
+      <div className="dashboard-content prevent-layout-shift" data-testid="dashboard-container">
+      {/* Header with validation indicator */}
       <div className="fade-in-content">
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="mt-2 text-gray-600">
-          Welcome to NeuroLab 360 - Your neurological experiment platform
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+            <p className="mt-2 text-gray-600">
+              Welcome to NeuroLab 360 - Your neurological experiment platform
+            </p>
+          </div>
+          {(isValidating || hasStaleData) && (
+            <div className="flex items-center space-x-2 text-sm text-gray-500">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              <span>Updating data...</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Summary Stats Cards */}
       <div className="dashboard-stats-grid">
-        {summaryLoading ? (
+        {summary.loading && !summary.data ? (
           [...Array(4)].map((_, i) => <StatCardSkeleton key={i} />)
-        ) : summaryError ? (
+        ) : summary.error && showErrorUI && !summary.data ? (
           <div className="col-span-full">
             <ErrorDisplay 
-              error={summaryError} 
-              onRetry={refetchSummary}
+              error={summary.error} 
+              onRetry={() => summary.refetch()}
               title="Failed to load summary"
               showRetry={true}
             />
           </div>
-        ) : summaryData ? (
+        ) : summary.data ? (
           <>
             <div className="fade-in-stagger-1">
               <StatCard
                 title="Total Experiments"
-                value={summaryData.total_experiments}
+                value={summary.data.total_experiments}
                 icon="🧪"
                 color="blue"
+                isStale={summary.isStale}
               />
             </div>
             <div className="fade-in-stagger-2">
               <StatCard
                 title="Completion Rate"
-                value={`${summaryData.recent_activity?.completion_rate || 0}%`}
+                value={`${summary.data.recent_activity?.completion_rate || 0}%`}
                 icon="✅"
                 color="green"
+                isStale={summary.isStale}
               />
             </div>
             <div className="fade-in-stagger-3">
               <StatCard
                 title="Recent Activity"
-                value={summaryData.recent_activity?.last_7_days || 0}
+                value={summary.data.recent_activity?.last_7_days || 0}
                 subtitle="Last 7 days"
                 icon="📈"
                 color="purple"
+                isStale={summary.isStale}
               />
             </div>
             <div className="fade-in-stagger-4">
               <StatCard
                 title="Experiment Types"
-                value={Object.keys(summaryData.experiments_by_type || {}).length}
+                value={Object.keys(summary.data.experiments_by_type || {}).length}
                 icon="🔬"
                 color="orange"
+                isStale={summary.isStale}
               />
             </div>
           </>
@@ -170,7 +207,7 @@ const Dashboard = memo(() => {
 
       {/* Period Selector */}
       <div className="dashboard-period-selector">
-        {!summaryError && summaryData && (
+        {!summary.error && summary.data && (
           <div className="fade-in-delayed">
             <PeriodSelector 
               selectedPeriod={selectedPeriod}
@@ -185,23 +222,24 @@ const Dashboard = memo(() => {
       <div className="dashboard-charts-grid">
         {/* Activity Timeline Chart */}
         <div className="dashboard-chart-card fade-in-stagger-1">
-          {chartsLoading ? (
+          {charts.loading && !charts.data ? (
             <ChartSkeleton height={300} />
-          ) : chartsError ? (
+          ) : charts.error && showErrorUI && !charts.data ? (
             <ErrorDisplay 
-              error={chartsError} 
-              onRetry={refetchCharts}
+              error={charts.error} 
+              onRetry={() => charts.refetch()}
               title="Failed to load activity chart"
             />
-          ) : chartsData?.activity_timeline ? (
+          ) : charts.data?.activity_timeline ? (
             <DataChart
               type="area"
-              data={chartsData.activity_timeline}
+              data={charts.data.activity_timeline}
               xKey="date"
               yKey="count"
               title="Experiment Activity"
               height={300}
               color="#3B82F6"
+              isStale={charts.isStale}
             />
           ) : (
             <div className="stable-dimensions">
@@ -216,18 +254,18 @@ const Dashboard = memo(() => {
 
         {/* Experiment Type Distribution */}
         <div className="dashboard-chart-card fade-in-stagger-2">
-          {chartsLoading ? (
+          {charts.loading && !charts.data ? (
             <ChartSkeleton height={300} />
-          ) : chartsError ? (
+          ) : charts.error && showErrorUI && !charts.data ? (
             <ErrorDisplay 
-              error={chartsError} 
-              onRetry={refetchCharts}
+              error={charts.error} 
+              onRetry={() => charts.refetch()}
               title="Failed to load distribution chart"
             />
-          ) : chartsData?.experiment_type_distribution ? (
+          ) : charts.data?.experiment_type_distribution ? (
             <DataChart
               type="pie"
-              data={chartsData.experiment_type_distribution.map(item => ({
+              data={charts.data.experiment_type_distribution.map(item => ({
                 name: item.type,
                 value: item.count
               }))}
@@ -235,6 +273,7 @@ const Dashboard = memo(() => {
               yKey="value"
               title="Experiment Types"
               height={300}
+              isStale={charts.isStale}
             />
           ) : (
             <div className="stable-dimensions">
@@ -249,15 +288,16 @@ const Dashboard = memo(() => {
       </div>
 
       {/* Performance Trends Chart */}
-      {chartsData?.performance_trends && chartsData.performance_trends.length > 0 && (
+      {charts.data?.performance_trends && charts.data.performance_trends.length > 0 && (
         <div className="dashboard-performance-chart fade-in-delayed">
           <DataChart
             type="multiline"
-            data={chartsData.performance_trends}
+            data={charts.data.performance_trends}
             xKey="date"
             title="Performance Trends"
             height={300}
             showLegend={true}
+            isStale={charts.isStale}
           />
         </div>
       )}
@@ -271,7 +311,7 @@ const Dashboard = memo(() => {
               <h3 className="text-lg font-medium text-gray-900">Recent Experiments</h3>
             </div>
             <div className="p-6 stable-dimensions">
-              {recentLoading ? (
+              {recent.loading && !recent.data ? (
                 <div className="space-y-4">
                   {[...Array(3)].map((_, i) => (
                     <div key={i} className="animate-pulse">
@@ -280,16 +320,20 @@ const Dashboard = memo(() => {
                     </div>
                   ))}
                 </div>
-              ) : recentError ? (
+              ) : recent.error && showErrorUI && !recent.data ? (
                 <ErrorDisplay 
-                  error={recentError} 
-                  onRetry={refetchRecent}
+                  error={recent.error} 
+                  onRetry={() => recent.refetch()}
                   title="Failed to load recent experiments"
                 />
-              ) : recentData?.experiments && recentData.experiments.length > 0 ? (
+              ) : recent.data?.experiments && recent.data.experiments.length > 0 ? (
                 <div className="space-y-4">
-                  {recentData.experiments.map((experiment) => (
-                    <ExperimentItem key={experiment.id} experiment={experiment} />
+                  {recent.data.experiments.map((experiment) => (
+                    <ExperimentItem 
+                      key={experiment.id} 
+                      experiment={experiment} 
+                      isStale={recent.isStale}
+                    />
                   ))}
                   <div className="pt-4 border-t border-gray-200">
                     <button
@@ -319,16 +363,20 @@ const Dashboard = memo(() => {
               <h3 className="text-lg font-medium text-gray-900">Insights</h3>
             </div>
             <div className="p-6 stable-dimensions">
-              {recentLoading ? (
+              {recent.loading && !recent.data ? (
                 <div className="space-y-4">
                   {[...Array(2)].map((_, i) => (
                     <InsightCardSkeleton key={i} />
                   ))}
                 </div>
-              ) : recentData?.insights && recentData.insights.length > 0 ? (
+              ) : recent.data?.insights && recent.data.insights.length > 0 ? (
                 <div className="space-y-4">
-                  {recentData.insights.map((insight, index) => (
-                    <InsightCard key={index} insight={insight} />
+                  {recent.data.insights.map((insight, index) => (
+                    <InsightCard 
+                      key={index} 
+                      insight={insight} 
+                      isStale={recent.isStale}
+                    />
                   ))}
                 </div>
               ) : (
@@ -370,7 +418,7 @@ const PeriodSelector = memo(({ selectedPeriod, periodOptions, onPeriodChange }) 
 ));
 
 // Helper Components
-const StatCard = memo(({ title, value, subtitle, icon, color = 'blue' }) => {
+const StatCard = memo(({ title, value, subtitle, icon, color = 'blue', isStale = false }) => {
   const colorClasses = {
     blue: 'text-blue-600',
     green: 'text-green-600',
@@ -380,13 +428,20 @@ const StatCard = memo(({ title, value, subtitle, icon, color = 'blue' }) => {
   };
 
   return (
-    <div className="dashboard-stat-card stable-dimensions">
+    <div className={`dashboard-stat-card stable-dimensions ${isStale ? 'opacity-75' : ''}`}>
       <div className="flex items-center w-full">
         <div className="flex-shrink-0">
           <span className="text-2xl">{icon}</span>
         </div>
         <div className="ml-4 flex-1">
-          <h3 className="text-sm font-medium text-gray-900 mb-1">{title}</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-gray-900 mb-1">{title}</h3>
+            {isStale && (
+              <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">
+                Updating...
+              </span>
+            )}
+          </div>
           <p className={`text-2xl font-bold ${colorClasses[color]}`}>{value}</p>
           {subtitle && (
             <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
@@ -397,7 +452,7 @@ const StatCard = memo(({ title, value, subtitle, icon, color = 'blue' }) => {
   );
 });
 
-const ExperimentItem = memo(({ experiment }) => {
+const ExperimentItem = memo(({ experiment, isStale = false }) => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'completed': return 'bg-green-100 text-green-800';
@@ -421,30 +476,39 @@ const ExperimentItem = memo(({ experiment }) => {
   };
 
   return (
-    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+    <div className={`flex items-center justify-between p-3 bg-gray-50 rounded-lg ${isStale ? 'opacity-75' : ''}`}>
       <div className="flex-1">
         <h4 className="text-sm font-medium text-gray-900">{experiment.name}</h4>
         <p className="text-xs text-gray-500">
           {experiment.experiment_type} • {formatDate(experiment.created_at)}
         </p>
       </div>
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(experiment.status)}`}>
-        {experiment.status}
-      </span>
+      <div className="flex items-center space-x-2">
+        {isStale && (
+          <span className="text-xs text-gray-400">Updating...</span>
+        )}
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(experiment.status)}`}>
+          {experiment.status}
+        </span>
+      </div>
     </div>
   );
 });
 
-const InsightCard = memo(({ insight }) => {
+const InsightCard = memo(({ insight, isStale = false }) => {
   return (
-    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+    <div className={`bg-blue-50 border border-blue-200 rounded-lg p-4 ${isStale ? 'opacity-75' : ''}`}>
       <div className="flex items-start space-x-3">
         <span className="text-lg flex-shrink-0">{insight.icon}</span>
         <div className="flex-1">
           <p className="text-sm text-blue-800 font-medium">{insight.message}</p>
+          {isStale && (
+            <p className="text-xs text-blue-600 mt-1">Updating insights...</p>
+          )}
         </div>
       </div>
-    </div>
+      </div>
+    </DashboardPerformanceMonitor>
   );
 });
 

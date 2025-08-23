@@ -26,8 +26,12 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "test:coverage": "react-scripts test --coverage --watchAll=false",
+    "test:performance": "react-scripts test --testPathPattern=performance --watchAll=false --verbose",
+    "test:regression": "react-scripts test --testPathPattern=regression --watchAll=false --verbose",
+    "test:visual": "react-scripts test --testPathPattern=visual-regression --watchAll=false --verbose",
     "test:e2e": "cypress run",
     "test:e2e:open": "cypress open",
+    "test:e2e:performance": "cypress run --spec 'cypress/e2e/performance.cy.js'",
     "lint": "eslint src --ext .js,.jsx --report-unused-disable-directives --max-warnings 0",
     "lint:fix": "eslint src --ext .js,.jsx --fix",
     "eject": "react-scripts eject"

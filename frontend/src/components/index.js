@@ -17,3 +17,13 @@ export { default as ExperimentCard } from './ExperimentCard';
 export { default as ExperimentForm } from './ExperimentForm';
 export { default as ExperimentDetails } from './ExperimentDetails';
 export { default as ExperimentFilters } from './ExperimentFilters';
+export { default as ErrorBoundary } from './ErrorBoundary';
+export { default as DashboardErrorBoundary } from './DashboardErrorBoundary';
+export { default as DashboardErrorFallback } from './DashboardErrorFallback';
+export { 
+  PerformanceProfiler, 
+  AppPerformanceMonitor, 
+  DashboardPerformanceMonitor,
+  LoginTransitionTracker,
+  withPerformanceMonitoring 
+} from './PerformanceMonitor';

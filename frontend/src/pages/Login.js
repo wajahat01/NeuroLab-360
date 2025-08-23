@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
+import { LoginTransitionTracker } from '../components/PerformanceMonitor';
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -75,10 +76,19 @@ const Login = () => {
 
     setIsLoading(true);
     
+    // Start tracking login to dashboard transition
+    const transitionTracker = LoginTransitionTracker.startLoginToDashboard();
+    
     try {
       await signIn(formData.email, formData.password);
       toast.success('Successfully signed in!');
       navigate('/dashboard');
+      
+      // End transition tracking on successful login
+      transitionTracker.end({
+        success: true,
+        email: formData.email
+      });
     } catch (error) {
       console.error('Login error:', error);
       
@@ -93,6 +103,12 @@ const Login = () => {
       }
       
       toast.error(errorMessage);
+      
+      // End transition tracking on error
+      transitionTracker.end({
+        success: false,
+        error: errorMessage
+      });
     } finally {
       setIsLoading(false);
     }
@@ -198,10 +214,10 @@ const Login = () => {
                       ? 'opacity-50 cursor-not-allowed transform-none'
                       : ''
                   }`}
-                  data-testid="submit-button"
+                  data-testid="login-button"
                 >
                   {isLoading ? (
-                    <div className="flex items-center justify-center space-x-2">
+                    <div className="flex items-center justify-center space-x-2" data-testid="loading-spinner">
                       <div className="loading-spinner h-5 w-5 border-white"></div>
                       <span>Signing in...</span>
                     </div>
