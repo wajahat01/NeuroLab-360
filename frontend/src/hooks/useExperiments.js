@@ -1,18 +1,24 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import { useOptimisticCrud } from './useOptimisticUpdates';
+import { useDataSync } from './useDataSync';
+import { useCleanup, useIsMounted } from './useCleanup';
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from '../utils/localStorage';
 
 const useExperiments = () => {
+  // Load filters from localStorage
+  const savedFilters = getStorageItem(STORAGE_KEYS.EXPERIMENT_FILTERS);
+  
   const [experiments, setExperiments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [filters, setFilters] = useState({
-    experiment_type: '',
-    status: '',
-    search: ''
-  });
-  const [sortBy, setSortBy] = useState('created_at');
-  const [sortOrder, setSortOrder] = useState('desc');
+  const [filters, setFilters] = useState(savedFilters);
+  const [sortBy, setSortBy] = useState(savedFilters.sortBy);
+  const [sortOrder, setSortOrder] = useState(savedFilters.sortOrder);
+
+  const { isMounted, safeSetState } = useIsMounted();
+  const { addPendingChange, isOnline } = useDataSync();
 
   // Get auth token for API calls
   const getAuthToken = useCallback(async () => {
@@ -98,12 +104,45 @@ const useExperiments = () => {
     }
   }, [filters, sortBy, sortOrder, getAuthToken]);
 
-  // Create new experiment
+  // Optimistic CRUD operations
+  const {
+    data: optimisticExperiments,
+    isOptimistic,
+    optimisticCreate,
+    optimisticUpdate,
+    optimisticDelete
+  } = useOptimisticCrud('/api/experiments', experiments, {
+    onCreateSuccess: (result) => {
+      toast.success('Experiment created and completed successfully!');
+    },
+    onUpdateSuccess: (result) => {
+      toast.success('Experiment updated successfully!');
+    },
+    onDeleteSuccess: (id) => {
+      toast.success('Experiment deleted successfully');
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    }
+  });
+
+  // Create new experiment with optimistic updates
   const createExperiment = useCallback(async (experimentData) => {
-    try {
+    const apiCall = async (data) => {
       const token = await getAuthToken();
       if (!token) {
         throw new Error('No authentication token available');
+      }
+
+      if (!isOnline) {
+        // Add to pending changes for offline sync
+        addPendingChange({
+          type: 'create',
+          endpoint: '/api/experiments',
+          data,
+          callback: () => createExperiment(data)
+        });
+        throw new Error('Currently offline. Changes will sync when connection is restored.');
       }
 
       const response = await fetch('/api/experiments', {
@@ -112,7 +151,7 @@ const useExperiments = () => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(experimentData),
+        body: JSON.stringify(data),
       });
 
       if (!response.ok) {
@@ -120,29 +159,32 @@ const useExperiments = () => {
         throw new Error(errorData.error || 'Failed to create experiment');
       }
 
-      const data = await response.json();
-      
-      // Add the new experiment to the list
-      setExperiments(prev => [data.experiment, ...prev]);
-      
-      toast.success('Experiment created and completed successfully!');
-      return data;
-    } catch (err) {
-      console.error('Error creating experiment:', err);
-      toast.error(err.message);
-      throw err;
-    }
-  }, [getAuthToken]);
+      const result = await response.json();
+      return result.experiment;
+    };
 
-  // Delete experiment
+    return optimisticCreate(experimentData, apiCall);
+  }, [getAuthToken, optimisticCreate, isOnline, addPendingChange]);
+
+  // Delete experiment with optimistic updates
   const deleteExperiment = useCallback(async (experimentId) => {
-    try {
+    const apiCall = async (id) => {
       const token = await getAuthToken();
       if (!token) {
         throw new Error('No authentication token available');
       }
 
-      const response = await fetch(`/api/experiments/${experimentId}`, {
+      if (!isOnline) {
+        addPendingChange({
+          type: 'delete',
+          endpoint: `/api/experiments/${id}`,
+          data: { id },
+          callback: () => deleteExperiment(id)
+        });
+        throw new Error('Currently offline. Changes will sync when connection is restored.');
+      }
+
+      const response = await fetch(`/api/experiments/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -153,17 +195,10 @@ const useExperiments = () => {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to delete experiment');
       }
+    };
 
-      // Remove the experiment from the list
-      setExperiments(prev => prev.filter(exp => exp.id !== experimentId));
-      
-      toast.success('Experiment deleted successfully');
-    } catch (err) {
-      console.error('Error deleting experiment:', err);
-      toast.error(err.message);
-      throw err;
-    }
-  }, [getAuthToken]);
+    return optimisticDelete(experimentId, apiCall);
+  }, [getAuthToken, optimisticDelete, isOnline, addPendingChange]);
 
   // Get experiment details
   const getExperimentDetails = useCallback(async (experimentId) => {
@@ -192,28 +227,51 @@ const useExperiments = () => {
     }
   }, [getAuthToken]);
 
-  // Update filters
+  // Update filters with persistence
   const updateFilters = useCallback((newFilters) => {
-    setFilters(prev => ({ ...prev, ...newFilters }));
-  }, []);
+    const updatedFilters = { ...filters, ...newFilters };
+    setFilters(updatedFilters);
+    
+    // Save to localStorage
+    setStorageItem(STORAGE_KEYS.EXPERIMENT_FILTERS, {
+      ...savedFilters,
+      ...updatedFilters
+    });
+  }, [filters, savedFilters]);
 
-  // Update sorting
+  // Update sorting with persistence
   const updateSorting = useCallback((field) => {
+    let newSortOrder = 'desc';
     if (sortBy === field) {
-      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(field);
-      setSortOrder('desc');
+      newSortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
     }
-  }, [sortBy]);
+    
+    setSortBy(field);
+    setSortOrder(newSortOrder);
+    
+    // Save to localStorage
+    setStorageItem(STORAGE_KEYS.EXPERIMENT_FILTERS, {
+      ...savedFilters,
+      sortBy: field,
+      sortOrder: newSortOrder
+    });
+  }, [sortBy, sortOrder, savedFilters]);
 
-  // Clear filters
+  // Clear filters with persistence
   const clearFilters = useCallback(() => {
-    setFilters({
+    const defaultFilters = {
       experiment_type: '',
       status: '',
-      search: ''
-    });
+      search: '',
+      sortBy: 'created_at',
+      sortOrder: 'desc'
+    };
+    
+    setFilters(defaultFilters);
+    setSortBy('created_at');
+    setSortOrder('desc');
+    
+    setStorageItem(STORAGE_KEYS.EXPERIMENT_FILTERS, defaultFilters);
   }, []);
 
   // Load experiments on mount and when filters/sorting change
@@ -221,13 +279,18 @@ const useExperiments = () => {
     fetchExperiments();
   }, [fetchExperiments]);
 
+  // Use optimistic data if available, otherwise use regular experiments
+  const displayExperiments = isOptimistic ? optimisticExperiments : experiments;
+
   return {
-    experiments,
+    experiments: displayExperiments,
     loading,
     error,
     filters,
     sortBy,
     sortOrder,
+    isOptimistic,
+    isOnline,
     createExperiment,
     deleteExperiment,
     getExperimentDetails,
