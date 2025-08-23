@@ -1,0 +1,126 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Component Snapshots EmptyState snapshot 1`] = `
+<div
+  class="text-center py-12 animate-fade-in "
+>
+  <div
+    class="mx-auto mb-4 flex justify-center"
+  >
+    <svg
+      class="w-12 h-12 text-gray-400"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="1.5"
+      />
+    </svg>
+  </div>
+  <h3
+    class="text-lg font-semibold text-gray-900 mb-2"
+  >
+    No data
+  </h3>
+  <p
+    class="text-sm text-gray-500 mb-6 max-w-sm mx-auto leading-relaxed"
+  >
+    Test description
+  </p>
+</div>
+`;
+
+exports[`Component Snapshots ErrorDisplay snapshot 1`] = `
+<div
+  class="bg-error-50 border border-error-200 rounded-xl p-6 animate-fade-in "
+>
+  <div
+    class="flex items-start space-x-3"
+  >
+    <div
+      class="flex-shrink-0 text-error-400"
+    >
+      <div
+        class="h-5 w-5"
+      >
+        <svg
+          class="h-5 w-5"
+          fill="currentColor"
+          viewBox="0 0 20 20"
+        >
+          <path
+            clip-rule="evenodd"
+            d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+            fill-rule="evenodd"
+          />
+        </svg>
+      </div>
+    </div>
+    <div
+      class="flex-1 min-w-0"
+    >
+      <h3
+        class="text-sm font-semibold text-error-800 mb-2"
+      >
+        Test Title
+      </h3>
+      <div
+        class="text-sm text-error-800 mb-4"
+      >
+        <p
+          class="leading-relaxed"
+        >
+          Test error
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`Component Snapshots LoadingSpinner snapshot 1`] = `
+<div
+  aria-label="Loading"
+  class="flex items-center space-x-2 "
+  role="status"
+>
+  <div
+    class="loading-spinner h-8 w-8 border-2 border-gray-300 border-primary-600 border-t-current"
+  />
+</div>
+`;
+
+exports[`Component Snapshots StatCardSkeleton snapshot 1`] = `
+<div
+  class="card animate-pulse "
+>
+  <div
+    class="card-body"
+  >
+    <div
+      class="flex items-center space-x-3"
+    >
+      <div
+        class="w-8 h-8 bg-gray-200 rounded-lg flex-shrink-0"
+      />
+      <div
+        class="flex-1 space-y-2"
+      >
+        <div
+          class="h-4 bg-gray-200 rounded w-3/4"
+        />
+        <div
+          class="h-6 bg-gray-200 rounded w-1/2"
+        />
+        <div
+          class="h-3 bg-gray-200 rounded w-full"
+        />
+      </div>
+    </div>
+  </div>
+</div>
+`;

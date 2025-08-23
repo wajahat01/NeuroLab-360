@@ -11,10 +11,12 @@ import { AuthProvider } from './contexts/AuthContext';
 // Layout component for authenticated pages
 const AuthenticatedLayout = ({ children }) => {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
       <Navbar />
-      <main className="container mx-auto px-4 py-8">
-        {children}
+      <main className="container mx-auto px-responsive py-responsive max-w-7xl">
+        <div className="animate-fade-in">
+          {children}
+        </div>
       </main>
     </div>
   );
