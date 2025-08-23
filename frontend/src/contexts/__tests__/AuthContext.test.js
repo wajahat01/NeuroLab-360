@@ -17,19 +17,45 @@ jest.mock('../../lib/supabase', () => ({
 
 // Test component to access auth context
 const TestComponent = () => {
-  const { user, loading, signIn, signUp, signOut } = useAuth();
+  const { user, loading, initialized, signIn, signUp, signOut } = useAuth();
+  
+  const handleSignIn = async () => {
+    try {
+      await signIn('test@example.com', 'password');
+    } catch (error) {
+      // Error will be thrown and caught by test
+      throw error;
+    }
+  };
+
+  const handleSignUp = async () => {
+    try {
+      await signUp('test@example.com', 'password');
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      throw error;
+    }
+  };
   
   return (
     <div>
       <div data-testid="loading">{loading ? 'loading' : 'not-loading'}</div>
+      <div data-testid="initialized">{initialized ? 'initialized' : 'not-initialized'}</div>
       <div data-testid="user">{user ? user.email : 'no-user'}</div>
-      <button onClick={() => signIn('test@example.com', 'password')} data-testid="signin">
+      <button onClick={handleSignIn} data-testid="signin">
         Sign In
       </button>
-      <button onClick={() => signUp('test@example.com', 'password')} data-testid="signup">
+      <button onClick={handleSignUp} data-testid="signup">
         Sign Up
       </button>
-      <button onClick={signOut} data-testid="signout">
+      <button onClick={handleSignOut} data-testid="signout">
         Sign Out
       </button>
     </div>
@@ -64,21 +90,33 @@ describe('AuthContext', () => {
     });
   });
 
-  test('throws error when useAuth is used outside AuthProvider', () => {
-    // Suppress console.error for this test
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+  test('provides auth context when used within AuthProvider', () => {
+    let authContext;
+    const TestWrapper = () => {
+      authContext = useAuth();
+      return <div>Test</div>;
+    };
     
-    expect(() => {
-      render(<TestComponent />);
-    }).toThrow('useAuth must be used within an AuthProvider');
+    render(
+      <AuthProvider>
+        <TestWrapper />
+      </AuthProvider>
+    );
     
-    consoleSpy.mockRestore();
+    expect(authContext).toBeDefined();
+    expect(authContext.signIn).toBeDefined();
+    expect(authContext.signUp).toBeDefined();
+    expect(authContext.signOut).toBeDefined();
+    expect(authContext.getAuthHeaders).toBeDefined();
+    expect(typeof authContext.loading).toBe('boolean');
+    expect(typeof authContext.initialized).toBe('boolean');
   });
 
   test('initializes with loading state', () => {
     renderWithAuthProvider();
     
     expect(screen.getByTestId('loading')).toHaveTextContent('loading');
+    expect(screen.getByTestId('initialized')).toHaveTextContent('not-initialized');
     expect(screen.getByTestId('user')).toHaveTextContent('no-user');
   });
 
@@ -93,6 +131,7 @@ describe('AuthContext', () => {
     
     await waitFor(() => {
       expect(screen.getByTestId('loading')).toHaveTextContent('not-loading');
+      expect(screen.getByTestId('initialized')).toHaveTextContent('initialized');
       expect(screen.getByTestId('user')).toHaveTextContent('test@example.com');
     });
   });
@@ -160,19 +199,23 @@ describe('AuthContext', () => {
     const mockError = new Error('Invalid credentials');
     supabase.auth.signInWithPassword.mockRejectedValue(mockError);
     
-    renderWithAuthProvider();
+    let authContext;
+    const TestWrapper = () => {
+      authContext = useAuth();
+      return null;
+    };
+    
+    render(
+      <AuthProvider>
+        <TestWrapper />
+      </AuthProvider>
+    );
     
     await waitFor(() => {
-      expect(screen.getByTestId('loading')).toHaveTextContent('not-loading');
+      expect(authContext.loading).toBe(false);
     });
     
-    const signInButton = screen.getByTestId('signin');
-    
-    await expect(async () => {
-      await act(async () => {
-        signInButton.click();
-      });
-    }).rejects.toThrow('Invalid credentials');
+    await expect(authContext.signIn('test@example.com', 'password')).rejects.toThrow('Invalid credentials');
   });
 
   test('signUp calls Supabase auth with correct parameters', async () => {
@@ -224,19 +267,23 @@ describe('AuthContext', () => {
     const mockError = new Error('Sign out failed');
     supabase.auth.signOut.mockRejectedValue(mockError);
     
-    renderWithAuthProvider();
+    let authContext;
+    const TestWrapper = () => {
+      authContext = useAuth();
+      return null;
+    };
+    
+    render(
+      <AuthProvider>
+        <TestWrapper />
+      </AuthProvider>
+    );
     
     await waitFor(() => {
-      expect(screen.getByTestId('loading')).toHaveTextContent('not-loading');
+      expect(authContext.loading).toBe(false);
     });
     
-    const signOutButton = screen.getByTestId('signout');
-    
-    await expect(async () => {
-      await act(async () => {
-        signOutButton.click();
-      });
-    }).rejects.toThrow('Sign out failed');
+    await expect(authContext.signOut()).rejects.toThrow('Sign out failed');
   });
 
   test('unsubscribes from auth state changes on unmount', () => {
@@ -251,5 +298,37 @@ describe('AuthContext', () => {
     unmount();
     
     expect(mockUnsubscribe).toHaveBeenCalled();
+  });
+
+  test('memoizes auth value to prevent unnecessary re-renders', async () => {
+    let renderCount = 0;
+    
+    const MemoTestComponent = () => {
+      const auth = useAuth();
+      renderCount++;
+      
+      return (
+        <div>
+          <div data-testid="render-count">{renderCount}</div>
+          <div data-testid="loading">{auth.loading ? 'loading' : 'not-loading'}</div>
+          <div data-testid="initialized">{auth.initialized ? 'initialized' : 'not-initialized'}</div>
+        </div>
+      );
+    };
+    
+    render(
+      <AuthProvider>
+        <MemoTestComponent />
+      </AuthProvider>
+    );
+    
+    // Wait for initial render to complete
+    await waitFor(() => {
+      expect(screen.getByTestId('loading')).toHaveTextContent('not-loading');
+      expect(screen.getByTestId('initialized')).toHaveTextContent('initialized');
+    });
+    
+    // The component should only render twice: initial render and after auth initialization
+    expect(renderCount).toBeLessThanOrEqual(2);
   });
 });

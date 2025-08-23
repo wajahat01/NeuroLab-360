@@ -51,7 +51,7 @@ def create_user_via_signup():
     url = os.getenv('SUPABASE_URL')
     key = os.getenv('SUPABASE_ANON_KEY')
     
-    test_email = "test@neurolab360.com"
+    test_email = "test@example.com"
     test_password = "testpassword123"
     
     print("👤 Creating user via Supabase Auth signup...")
