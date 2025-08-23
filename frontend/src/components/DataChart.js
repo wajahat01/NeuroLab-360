@@ -17,8 +17,48 @@ import {
   ResponsiveContainer
 } from 'recharts';
 
+/** Color palette for chart elements */
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'];
 
+/**
+ * Versatile data visualization component supporting multiple chart types.
+ * Built with Recharts library for responsive and interactive charts.
+ * 
+ * @component
+ * @param {Object} props - Component props
+ * @param {string} [props.type='line'] - Chart type: 'line', 'area', 'bar', 'pie', 'multiline'
+ * @param {Array} [props.data=[]] - Array of data objects to visualize
+ * @param {string} [props.xKey='date'] - Key for X-axis data in data objects
+ * @param {string} [props.yKey='value'] - Key for Y-axis data in data objects
+ * @param {string} [props.title] - Optional chart title displayed above the chart
+ * @param {number} [props.height=300] - Height of the chart in pixels
+ * @param {boolean} [props.showLegend=true] - Whether to display chart legend
+ * @param {boolean} [props.showGrid=true] - Whether to display grid lines
+ * @param {string} [props.color='#3B82F6'] - Primary color for single-series charts
+ * @param {string} [props.className=''] - Additional CSS classes for styling
+ * @returns {JSX.Element} Rendered chart component
+ * 
+ * @example
+ * // Line chart with experiment data
+ * <DataChart
+ *   type="line"
+ *   data={experimentData}
+ *   xKey="timestamp"
+ *   yKey="amplitude"
+ *   title="EEG Signal Over Time"
+ *   height={400}
+ * />
+ * 
+ * @example
+ * // Pie chart for experiment type distribution
+ * <DataChart
+ *   type="pie"
+ *   data={typeDistribution}
+ *   xKey="type"
+ *   yKey="count"
+ *   title="Experiment Types"
+ * />
+ */
 const DataChart = ({ 
   type = 'line', 
   data = [], 
@@ -46,6 +86,12 @@ const DataChart = ({
     );
   }
 
+  /**
+   * Renders the appropriate chart component based on the type prop.
+   * Handles different chart configurations and styling options.
+   * 
+   * @returns {JSX.Element|null} The rendered chart component or null for invalid types
+   */
   const renderChart = () => {
     const commonProps = {
       data,

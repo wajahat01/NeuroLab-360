@@ -4,5 +4,14 @@ supabase==1.2.0
 python-dotenv==1.0.0
 pytest==7.4.2
 pytest-flask==1.2.0
+pytest-cov==4.1.0
+pytest-xdist==3.3.1
+pytest-mock==3.11.1
+pytest-benchmark==4.0.0
 requests==2.31.0
 websockets==11.0.3
+psutil==5.9.5
+coverage==7.3.2
+black==23.9.1
+flake8==6.1.0
+safety==2.3.5

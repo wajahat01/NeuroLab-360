@@ -6,6 +6,27 @@ import { useDataSync } from './useDataSync';
 import { useCleanup, useIsMounted } from './useCleanup';
 import { getStorageItem, setStorageItem, STORAGE_KEYS } from '../utils/localStorage';
 
+/**
+ * Custom hook for managing experiments data and operations.
+ * Provides CRUD operations, filtering, sorting, and offline support for experiments.
+ * 
+ * @returns {Object} Hook return object
+ * @returns {Array} experiments - Array of experiment objects
+ * @returns {boolean} loading - Loading state for async operations
+ * @returns {string|null} error - Error message if any operation fails
+ * @returns {Object} filters - Current filter settings
+ * @returns {string} sortBy - Current sort field
+ * @returns {string} sortOrder - Current sort order ('asc' or 'desc')
+ * @returns {boolean} isOptimistic - Whether optimistic updates are active
+ * @returns {boolean} isOnline - Network connectivity status
+ * @returns {Function} createExperiment - Function to create new experiment
+ * @returns {Function} deleteExperiment - Function to delete experiment
+ * @returns {Function} getExperimentDetails - Function to fetch experiment details
+ * @returns {Function} updateFilters - Function to update filter settings
+ * @returns {Function} updateSorting - Function to update sort settings
+ * @returns {Function} clearFilters - Function to reset all filters
+ * @returns {Function} refetch - Function to manually refetch experiments
+ */
 const useExperiments = () => {
   // Load filters from localStorage
   const savedFilters = getStorageItem(STORAGE_KEYS.EXPERIMENT_FILTERS);
@@ -20,13 +41,22 @@ const useExperiments = () => {
   const { isMounted, safeSetState } = useIsMounted();
   const { addPendingChange, isOnline } = useDataSync();
 
-  // Get auth token for API calls
+  /**
+   * Retrieves the current authentication token from Supabase session.
+   * Used for authenticating API requests to the backend.
+   * 
+   * @returns {Promise<string|null>} The JWT access token or null if not authenticated
+   */
   const getAuthToken = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
     return session?.access_token;
   }, []);
 
-  // Fetch experiments from API
+  /**
+   * Fetches experiments from the backend API with current filters and sorting applied.
+   * Handles authentication, error states, and client-side filtering/sorting.
+   * Updates the experiments state with the fetched data.
+   */
   const fetchExperiments = useCallback(async () => {
     try {
       setLoading(true);
@@ -126,7 +156,16 @@ const useExperiments = () => {
     }
   });
 
-  // Create new experiment with optimistic updates
+  /**
+   * Creates a new experiment with optimistic UI updates.
+   * Supports offline mode by queuing changes for later sync.
+   * 
+   * @param {Object} experimentData - The experiment data to create
+   * @param {string} experimentData.name - Name of the experiment
+   * @param {string} experimentData.experiment_type - Type of experiment
+   * @param {Object} experimentData.parameters - Experiment parameters
+   * @returns {Promise<Object>} The created experiment object
+   */
   const createExperiment = useCallback(async (experimentData) => {
     const apiCall = async (data) => {
       const token = await getAuthToken();
@@ -166,7 +205,13 @@ const useExperiments = () => {
     return optimisticCreate(experimentData, apiCall);
   }, [getAuthToken, optimisticCreate, isOnline, addPendingChange]);
 
-  // Delete experiment with optimistic updates
+  /**
+   * Deletes an experiment with optimistic UI updates.
+   * Supports offline mode by queuing changes for later sync.
+   * 
+   * @param {string} experimentId - UUID of the experiment to delete
+   * @returns {Promise<void>}
+   */
   const deleteExperiment = useCallback(async (experimentId) => {
     const apiCall = async (id) => {
       const token = await getAuthToken();

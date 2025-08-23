@@ -1,0 +1,57 @@
+{
+  "name": "neurolab-360",
+  "version": "1.0.0",
+  "description": "Full-stack neurological experiment platform",
+  "scripts": {
+    "build": "./scripts/build.sh",
+    "deploy": "./scripts/deploy.sh",
+    "optimize": "./scripts/optimize.sh",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:frontend": "cd frontend && npm start",
+    "dev:backend": "cd backend && python app.py",
+    "test": "npm run test:frontend && npm run test:backend",
+    "test:frontend": "cd frontend && npm test -- --watchAll=false",
+    "test:backend": "cd backend && python -m pytest",
+    "lint": "npm run lint:frontend && npm run lint:backend",
+    "lint:frontend": "cd frontend && npm run lint",
+    "lint:backend": "cd backend && flake8 .",
+    "format": "npm run format:frontend && npm run format:backend",
+    "format:frontend": "cd frontend && npm run format",
+    "format:backend": "cd backend && black .",
+    "install:all": "npm run install:frontend && npm run install:backend",
+    "install:frontend": "cd frontend && npm install",
+    "install:backend": "cd backend && pip install -r requirements.txt",
+    "clean": "rm -rf build && cd frontend && rm -rf build node_modules && cd ../backend && rm -rf __pycache__ .pytest_cache",
+    "docker:build": "docker-compose -f build/docker-compose.prod.yml build",
+    "docker:up": "docker-compose -f build/docker-compose.prod.yml up -d",
+    "docker:down": "docker-compose -f build/docker-compose.prod.yml down",
+    "docker:logs": "docker-compose -f build/docker-compose.prod.yml logs -f",
+    "db:migrate": "./scripts/migrate.sh",
+    "db:seed": "./scripts/seed.sh",
+    "db:backup": "./scripts/db-utils.sh backup",
+    "db:restore": "./scripts/db-utils.sh restore",
+    "db:maintenance": "./scripts/db-utils.sh maintenance",
+    "db:stats": "./scripts/db-utils.sh stats"
+  },
+  "devDependencies": {
+    "concurrently": "^7.6.0"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-username/neurolab-360.git"
+  },
+  "keywords": [
+    "neuroscience",
+    "experiments",
+    "data-visualization",
+    "react",
+    "flask",
+    "supabase"
+  ],
+  "author": "NeuroLab 360 Team",
+  "license": "MIT"
+}
