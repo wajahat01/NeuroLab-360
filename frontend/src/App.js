@@ -6,6 +6,9 @@ import Dashboard from './pages/Dashboard';
 import Experiments from './pages/Experiments';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
+import ToastProvider from './components/ToastProvider';
+import { NotFoundPage } from './pages/ErrorPages';
 import { AuthProvider } from './contexts/AuthContext';
 
 // Layout component for authenticated pages
@@ -24,46 +27,55 @@ const AuthenticatedLayout = ({ children }) => {
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <div className="App">
-          <Toaster 
-            position="top-right"
-            toastOptions={{
-              duration: 4000,
-              style: {
-                background: '#363636',
-                color: '#fff',
-              },
-            }}
-          />
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route 
-              path="/dashboard" 
-              element={
-                <ProtectedRoute>
-                  <AuthenticatedLayout>
-                    <Dashboard />
-                  </AuthenticatedLayout>
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/experiments" 
-              element={
-                <ProtectedRoute>
-                  <AuthenticatedLayout>
-                    <Experiments />
-                  </AuthenticatedLayout>
-                </ProtectedRoute>
-              } 
-            />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
-        </div>
-      </Router>
-    </AuthProvider>
+    <ErrorBoundary showDetails={process.env.NODE_ENV === 'development'}>
+      <AuthProvider>
+        <ToastProvider>
+          <Router>
+            <div className="App">
+              <Toaster 
+                position="top-right"
+                toastOptions={{
+                  duration: 4000,
+                  style: {
+                    background: '#363636',
+                    color: '#fff',
+                  },
+                }}
+              />
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route 
+                  path="/dashboard" 
+                  element={
+                    <ProtectedRoute>
+                      <AuthenticatedLayout>
+                        <ErrorBoundary>
+                          <Dashboard />
+                        </ErrorBoundary>
+                      </AuthenticatedLayout>
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/experiments" 
+                  element={
+                    <ProtectedRoute>
+                      <AuthenticatedLayout>
+                        <ErrorBoundary>
+                          <Experiments />
+                        </ErrorBoundary>
+                      </AuthenticatedLayout>
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="*" element={<NotFoundPage />} />
+              </Routes>
+            </div>
+          </Router>
+        </ToastProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 
