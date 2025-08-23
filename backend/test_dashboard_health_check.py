@@ -1,0 +1,578 @@
+"""
+Comprehensive tests for dashboard health check system.
+Tests all health check endpoints and monitoring functionality.
+"""
+
+import pytest
+import json
+import time
+from unittest.mock import Mock, patch, MagicMock
+from datetime import datetime
+
+from app import create_app
+from retry_logic import CircuitBreakerState, get_database_circuit_breaker, get_api_circuit_breaker
+from exceptions import DatabaseError, NetworkError
+
+
+class TestDashboardHealthCheck:
+    """Test suite for dashboard health check endpoints."""
+    
+    @pytest.fixture
+    def app(self):
+        """Create test application."""
+        app = create_app()
+        app.config['TESTING'] = True
+        return app
+    
+    @pytest.fixture
+    def client(self, app):
+        """Create test client."""
+        return app.test_client()
+    
+    def setup_method(self):
+        """Reset circuit breaker states before each test."""
+        # Reset database circuit breaker
+        db_cb = get_database_circuit_breaker()
+        db_cb.state = CircuitBreakerState.CLOSED
+        db_cb.failure_count = 0
+        db_cb.last_failure_time = None
+        
+        # Reset API circuit breaker
+        api_cb = get_api_circuit_breaker()
+        api_cb.state = CircuitBreakerState.CLOSED
+        api_cb.failure_count = 0
+        api_cb.last_failure_time = None
+    
+    def test_main_health_check_healthy(self, client):
+        """Test main health check endpoint when all services are healthy."""
+        with patch('routes.dashboard.supabase_client') as mock_supabase:
+            with patch('routes.dashboard.get_cache_service') as mock_cache_service:
+                with patch('psutil.cpu_percent', return_value=25.0):
+                    with patch('psutil.virtual_memory') as mock_memory:
+                        with patch('psutil.disk_usage') as mock_disk:
+                            # Setup healthy responses
+                            mock_supabase.execute_query.return_value = {
+                                'success': True,
+                                'data': [{'id': 'test'}]
+                            }
+                            
+                            mock_cache = Mock()
+                            mock_cache.get.return_value = {'test': True}
+                            mock_cache.set.return_value = None
+                            mock_cache.delete.return_value = None
+                            mock_cache.get_stats.return_value = {
+                                'hit_rate': 0.85,
+                                'total_requests': 1000,
+                                'memory_usage': 50
+                            }
+                            mock_cache.redis_cache = Mock()
+            mock_cache.redis_cache.available = True
+                            mock_cache_service.return_value = mock_cache
+                            
+                            mock_memory.return_value.percent = 60.0
+                            mock_disk.return_value.percent = 40.0
+                            
+                            response = client.get('/api/dashboard/health')
+                            
+                            assert response.status_code == 200
+                            data = json.loads(response.data)
+                            
+                            assert data['service'] == 'dashboard'
+                            assert data['status'] == 'healthy'
+                            assert 'timestamp' in data
+                            assert 'checks' in data
+                            assert 'performance_metrics' in data
+                            assert 'circuit_breakers' in data
+                            
+                            # Check database health
+                            assert data['checks']['database']['status'] == 'healthy'
+                            assert data['checks']['database']['connection'] == 'established'
+                            assert data['checks']['database']['query_success'] is True
+                            
+                            # Check cache health
+                            assert data['checks']['cache']['status'] == 'healthy'
+                            assert data['checks']['cache']['available'] is True
+                            assert data['checks']['cache']['read_write_success'] is True
+                            
+                            # Check circuit breakers
+                            assert data['circuit_breakers']['database']['healthy'] is True
+                            assert data['circuit_breakers']['api']['healthy'] is True
+                            
+                            # Check components
+                            assert 'components' in data['checks']
+                            assert 'summary' in data['checks']['components']
+                            assert 'charts' in data['checks']['components']
+                            assert 'recent_experiments' in data['checks']['components']
+    
+    def test_main_health_check_database_unhealthy(self, client):
+        """Test main health check when database is unhealthy."""
+        with patch('routes.dashboard.supabase_client') as mock_supabase:
+            with patch('routes.dashboard.get_cache_service') as mock_cache_service:
+                with patch('psutil.cpu_percent', return_value=25.0):
+                    with patch('psutil.virtual_memory') as mock_memory:
+                        with patch('psutil.disk_usage') as mock_disk:
+                            # Setup database failure
+                            mock_supabase.execute_query.side_effect = DatabaseError("Connection failed")
+                            
+                            # Setup healthy cache
+                            mock_cache = Mock()
+                            mock_cache.get.return_value = {'test': True}
+                            mock_cache.set.return_value = None
+                            mock_cache.delete.return_value = None
+                            mock_cache.get_stats.return_value = {'hit_rate': 0.85}
+                            mock_cache.redis_cache = Mock()
+            mock_cache.redis_cache.available = True
+                            mock_cache_service.return_value = mock_cache
+                            
+                            mock_memory.return_value.percent = 60.0
+                            mock_disk.return_value.percent = 40.0
+                            
+                            response = client.get('/api/dashboard/health')
+                            
+                            assert response.status_code == 503
+                            data = json.loads(response.data)
+                            
+                            assert data['status'] == 'unhealthy'
+                            assert data['checks']['database']['status'] == 'unhealthy'
+                            assert data['checks']['database']['connection'] == 'failed'
+                            assert 'error' in data['checks']['database']
+    
+    def test_main_health_check_cache_unavailable(self, client):
+        """Test main health check when cache service is unavailable."""
+        with patch('routes.dashboard.supabase_client') as mock_supabase:
+            with patch('routes.dashboard.get_cache_service', return_value=None):
+                with patch('psutil.cpu_percent', return_value=25.0):
+                    with patch('psutil.virtual_memory') as mock_memory:
+                        with patch('psutil.disk_usage') as mock_disk:
+                            # Setup healthy database
+                            mock_supabase.execute_query.return_value = {
+                                'success': True,
+                                'data': [{'id': 'test'}]
+                            }
+                            
+                            mock_memory.return_value.percent = 60.0
+                            mock_disk.return_value.percent = 40.0
+                            
+                            response = client.get('/api/dashboard/health')
+                            
+                            assert response.status_code == 503
+                            data = json.loads(response.data)
+                            
+                            assert data['status'] == 'unhealthy'
+                            assert data['checks']['cache']['status'] == 'unhealthy'
+                            assert data['checks']['cache']['available'] is False
+    
+    def test_main_health_check_circuit_breaker_open(self, client):
+        """Test main health check when circuit breaker is open."""
+        with patch('routes.dashboard.supabase_client') as mock_supabase:
+            with patch('routes.dashboard.get_cache_service') as mock_cache_service:
+                with patch('psutil.cpu_percent', return_value=25.0):
+                    with patch('psutil.virtual_memory') as mock_memory:
+                        with patch('psutil.disk_usage') as mock_disk:
+                            # Setup healthy services
+                            mock_supabase.execute_query.return_value = {
+                                'success': True,
+                                'data': [{'id': 'test'}]
+                            }
+                            
+                            mock_cache = Mock()
+                            mock_cache.get.return_value = {'test': True}
+                            mock_cache.set.return_value = None
+                            mock_cache.delete.return_value = None
+                            mock_cache.get_stats.return_value = {'hit_rate': 0.85}
+                            mock_cache.redis_cache = Mock()
+            mock_cache.redis_cache.available = True
+                            mock_cache_service.return_value = mock_cache
+                            
+                            mock_memory.return_value.percent = 60.0
+                            mock_disk.return_value.percent = 40.0
+                            
+                            # Open database circuit breaker
+                            db_cb = get_database_circuit_breaker()
+                            db_cb.state = CircuitBreakerState.OPEN
+                            db_cb.failure_count = 5
+                            db_cb.last_failure_time = time.time()
+                            
+                            response = client.get('/api/dashboard/health')
+                            
+                            assert response.status_code == 200  # Still healthy overall
+                            data = json.loads(response.data)
+                            
+                            assert data['status'] == 'degraded'
+                            assert 'degraded_services' in data
+                            assert 'circuit_breaker_database' in data['degraded_services']
+                            assert data['circuit_breakers']['database']['state'] == 'open'
+                            assert data['circuit_breakers']['database']['healthy'] is False
+    
+    def test_database_health_endpoint(self, client):
+        """Test individual database health check endpoint."""
+        with patch('routes.dashboard.supabase_client') as mock_supabase:
+            # Test healthy database
+            mock_supabase.execute_query.return_value = {
+                'success': True,
+                'data': [{'id': 'test'}]
+            }
+            
+            response = client.get('/api/dashboard/health/database')
+            
+            assert response.status_code == 200
+            data = json.loads(response.data)
+            
+            assert data['service'] == 'dashboard_database'
+            assert data['status'] == 'healthy'
+            assert data['connection'] == 'established'
+            assert data['query_success'] is True
+            assert 'response_time_ms' in data
+            
+            # Test unhealthy database
+            mock_supabase.execute_query.return_value = {
+                'success': False,
+                'error': 'Connection timeout'
+            }
+            
+            response = client.get('/api/dashboard/health/database')
+            
+            assert response.status_code == 503
+            data = json.loads(response.data)
+            
+            assert data['status'] == 'unhealthy'
+            assert data['connection'] == 'failed'
+            assert data['query_success'] is False
+            assert data['error'] == 'Connection timeout'
+    
+    def test_cache_health_endpoint(self, client):
+        """Test individual cache health check endpoint."""
+        with patch('routes.dashboard.get_cache_service') as mock_cache_service:
+            # Test healthy cache
+            mock_cache = Mock()
+            mock_cache.get.return_value = {'test': True}
+            mock_cache.set.return_value = None
+            mock_cache.delete.return_value = None
+            mock_cache.get_stats.return_value = {
+                'hit_rate': 0.85,
+                'total_requests': 1000,
+                'memory_usage': 50
+            }
+            mock_cache.redis_cache = Mock()
+            mock_cache.redis_cache.available = True
+            mock_cache_service.return_value = mock_cache
+            
+            response = client.get('/api/dashboard/health/cache')
+            
+            assert response.status_code == 200
+            data = json.loads(response.data)
+            
+            assert data['service'] == 'dashboard_cache'
+            assert data['status'] == 'healthy'
+            assert data['available'] is True
+            assert data['read_write_success'] is True
+            assert 'response_time_ms' in data
+            assert 'statistics' in data
+            
+            # Test unavailable cache
+            mock_cache_service.return_value = None
+            
+            response = client.get('/api/dashboard/health/cache')
+            
+            assert response.status_code == 503
+            data = json.loads(response.data)
+            
+            assert data['status'] == 'unhealthy'
+            assert data['available'] is False
+    
+    def test_components_health_endpoint(self, client):
+        """Test individual components health check endpoint."""
+        response = client.get('/api/dashboard/health/components')
+        
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        
+        assert data['service'] == 'dashboard_components'
+        assert data['status'] == 'healthy'
+        assert 'components' in data
+        assert 'summary' in data['components']
+        assert 'charts' in data['components']
+        assert 'recent_experiments' in data['components']
+        
+        # Check component structure
+        for component_name, component_data in data['components'].items():
+            assert 'status' in component_data
+            assert 'response_time_ms' in component_data
+            assert 'functional' in component_data
+            assert component_data['status'] in ['healthy', 'degraded', 'unhealthy']
+        
+        # Check summary
+        assert 'summary' in data
+        assert 'total_components' in data['summary']
+        assert 'healthy_components' in data['summary']
+        assert data['summary']['total_components'] == 3
+    
+    def test_database_health_check_performance_thresholds(self, client):
+        """Test database health check performance thresholds."""
+        with patch('routes.dashboard.supabase_client') as mock_supabase:
+            # Test fast response (healthy)
+            with patch('routes.dashboard.time.time', side_effect=[0, 0.05]):  # 50ms response
+                mock_supabase.execute_query.return_value = {
+                    'success': True,
+                    'data': [{'id': 'test'}]
+                }
+                
+                response = client.get('/api/dashboard/health/database')
+                data = json.loads(response.data)
+                
+                assert data['status'] == 'healthy'
+                assert data['response_time_ms'] == 50.0
+            
+            # Test slow response (degraded)
+            with patch('routes.dashboard.time.time', side_effect=[0, 0.5]):  # 500ms response
+                mock_supabase.execute_query.return_value = {
+                    'success': True,
+                    'data': [{'id': 'test'}]
+                }
+                
+                response = client.get('/api/dashboard/health/database')
+                data = json.loads(response.data)
+                
+                assert data['status'] == 'degraded'
+                assert data['response_time_ms'] == 500.0
+            
+            # Test very slow response (unhealthy)
+            with patch('routes.dashboard.time.time', side_effect=[0, 2.0]):  # 2000ms response
+                mock_supabase.execute_query.return_value = {
+                    'success': True,
+                    'data': [{'id': 'test'}]
+                }
+                
+                response = client.get('/api/dashboard/health/database')
+                data = json.loads(response.data)
+                
+                assert data['status'] == 'unhealthy'
+                assert data['response_time_ms'] == 2000.0
+    
+    def test_cache_health_check_performance_thresholds(self, client):
+        """Test cache health check performance thresholds."""
+        with patch('routes.dashboard.get_cache_service') as mock_cache_service:
+            mock_cache = Mock()
+            mock_cache.get.return_value = {'test': True}
+            mock_cache.set.return_value = None
+            mock_cache.delete.return_value = None
+            mock_cache.get_stats.return_value = {'hit_rate': 0.85}
+            mock_cache.redis_cache = Mock()
+            mock_cache.redis_cache.available = True
+            mock_cache_service.return_value = mock_cache
+            
+            # Test fast response (healthy)
+            with patch('routes.dashboard.time.time', side_effect=[0, 0.02]):  # 20ms response
+                response = client.get('/api/dashboard/health/cache')
+                data = json.loads(response.data)
+                
+                assert data['status'] == 'healthy'
+                assert data['response_time_ms'] == 20.0
+            
+            # Test slow response (degraded)
+            with patch('routes.dashboard.time.time', side_effect=[0, 0.15]):  # 150ms response
+                response = client.get('/api/dashboard/health/cache')
+                data = json.loads(response.data)
+                
+                assert data['status'] == 'degraded'
+                assert data['response_time_ms'] == 150.0
+            
+            # Test very slow response (unhealthy)
+            with patch('routes.dashboard.time.time', side_effect=[0, 0.5]):  # 500ms response
+                response = client.get('/api/dashboard/health/cache')
+                data = json.loads(response.data)
+                
+                assert data['status'] == 'unhealthy'
+                assert data['response_time_ms'] == 500.0
+    
+    def test_cache_health_check_read_write_failure(self, client):
+        """Test cache health check when read/write operations fail."""
+        with patch('routes.dashboard.get_cache_service') as mock_cache_service:
+            mock_cache = Mock()
+            mock_cache.get.return_value = None  # Read fails
+            mock_cache.set.return_value = None
+            mock_cache.delete.return_value = None
+            mock_cache.get_stats.return_value = {'hit_rate': 0.85}
+            mock_cache.redis_cache = Mock()
+            mock_cache.redis_cache.available = True
+            mock_cache_service.return_value = mock_cache
+            
+            response = client.get('/api/dashboard/health/cache')
+            
+            assert response.status_code == 503
+            data = json.loads(response.data)
+            
+            assert data['status'] == 'unhealthy'
+            assert data['read_write_success'] is False
+            assert 'Cache read/write test failed' in data['error']
+    
+    def test_circuit_breaker_health_monitoring(self, client):
+        """Test circuit breaker health monitoring in main health check."""
+        with patch('routes.dashboard.supabase_client') as mock_supabase:
+            with patch('routes.dashboard.get_cache_service') as mock_cache_service:
+                with patch('psutil.cpu_percent', return_value=25.0):
+                    with patch('psutil.virtual_memory') as mock_memory:
+                        with patch('psutil.disk_usage') as mock_disk:
+                            # Setup healthy services
+                            mock_supabase.execute_query.return_value = {
+                                'success': True,
+                                'data': [{'id': 'test'}]
+                            }
+                            
+                            mock_cache = Mock()
+                            mock_cache.get.return_value = {'test': True}
+                            mock_cache.set.return_value = None
+                            mock_cache.delete.return_value = None
+                            mock_cache.get_stats.return_value = {'hit_rate': 0.85}
+                            mock_cache.redis_cache = Mock()
+            mock_cache.redis_cache.available = True
+                            mock_cache_service.return_value = mock_cache
+                            
+                            mock_memory.return_value.percent = 60.0
+                            mock_disk.return_value.percent = 40.0
+                            
+                            # Set circuit breaker states
+                            db_cb = get_database_circuit_breaker()
+                            db_cb.state = CircuitBreakerState.HALF_OPEN
+                            db_cb.failure_count = 3
+                            db_cb.last_failure_time = time.time() - 30
+                            
+                            api_cb = get_api_circuit_breaker()
+                            api_cb.state = CircuitBreakerState.CLOSED
+                            api_cb.failure_count = 0
+                            
+                            response = client.get('/api/dashboard/health')
+                            data = json.loads(response.data)
+                            
+                            # Check circuit breaker information
+                            assert 'circuit_breakers' in data
+                            assert 'database' in data['circuit_breakers']
+                            assert 'api' in data['circuit_breakers']
+                            
+                            db_cb_data = data['circuit_breakers']['database']
+                            assert db_cb_data['state'] == 'half_open'
+                            assert db_cb_data['failure_count'] == 3
+                            assert db_cb_data['failure_threshold'] == 5
+                            assert db_cb_data['healthy'] is False
+                            
+                            api_cb_data = data['circuit_breakers']['api']
+                            assert api_cb_data['state'] == 'closed'
+                            assert api_cb_data['failure_count'] == 0
+                            assert api_cb_data['healthy'] is True
+    
+    def test_performance_metrics_collection(self, client):
+        """Test performance metrics collection in health check."""
+        with patch('routes.dashboard.supabase_client') as mock_supabase:
+            with patch('routes.dashboard.get_cache_service') as mock_cache_service:
+                with patch('routes.dashboard.error_handler') as mock_error_handler:
+                    with patch('psutil.cpu_percent', return_value=45.5):
+                        with patch('psutil.virtual_memory') as mock_memory:
+                            with patch('psutil.disk_usage') as mock_disk:
+                                # Setup mocks
+                                mock_supabase.execute_query.return_value = {
+                                    'success': True,
+                                    'data': [{'id': 'test'}]
+                                }
+                                
+                                mock_cache = Mock()
+                                mock_cache.get.return_value = {'test': True}
+                                mock_cache.set.return_value = None
+                                mock_cache.delete.return_value = None
+                                mock_cache.get_stats.return_value = {
+                                    'hit_rate': 0.92,
+                                    'total_requests': 5000,
+                                    'memory_usage': 75
+                                }
+                                mock_cache.redis_cache = Mock()
+            mock_cache.redis_cache.available = True
+                                mock_cache_service.return_value = mock_cache
+                                
+                                # Mock error metrics
+                                mock_error_metrics = Mock()
+                                mock_error_metrics.error_counts = {
+                                    '/api/dashboard/summary:DatabaseError': 5,
+                                    '/api/dashboard/charts:ValidationError': 2
+                                }
+                                mock_error_handler.error_metrics = mock_error_metrics
+                                
+                                mock_memory.return_value.percent = 72.3
+                                mock_disk.return_value.percent = 35.8
+                                
+                                response = client.get('/api/dashboard/health')
+                                data = json.loads(response.data)
+                                
+                                # Check performance metrics
+                                assert 'performance_metrics' in data
+                                metrics = data['performance_metrics']
+                                
+                                # Check error metrics
+                                assert 'errors' in metrics
+                                assert 'total_errors' in metrics['errors']
+                                assert 'error_rates' in metrics['errors']
+                                
+                                # Check cache metrics
+                                assert 'cache' in metrics
+                                assert metrics['cache']['hit_rate'] == 0.92
+                                assert metrics['cache']['total_requests'] == 5000
+                                
+                                # Check system metrics
+                                assert 'system' in metrics
+                                assert metrics['system']['cpu_percent'] == 45.5
+                                assert metrics['system']['memory_percent'] == 72.3
+                                assert metrics['system']['disk_usage_percent'] == 35.8
+    
+    def test_component_health_check_functionality(self, client):
+        """Test individual component health check functionality."""
+        response = client.get('/api/dashboard/health/components')
+        data = json.loads(response.data)
+        
+        # All components should be functional in test environment
+        for component_name, component_data in data['components'].items():
+            assert component_data['functional'] is True
+            assert component_data['status'] in ['healthy', 'degraded']
+            assert 'response_time_ms' in component_data
+            assert component_data['response_time_ms'] >= 0
+    
+    def test_health_check_error_handling(self, client):
+        """Test health check error handling when exceptions occur."""
+        with patch('routes.dashboard.supabase_client') as mock_supabase:
+            # Test exception in database health check
+            mock_supabase.execute_query.side_effect = Exception("Unexpected error")
+            
+            response = client.get('/api/dashboard/health/database')
+            
+            assert response.status_code == 503
+            data = json.loads(response.data)
+            
+            assert data['status'] == 'unhealthy'
+            assert data['connection'] == 'failed'
+            assert 'Unexpected error' in data['error']
+    
+    def test_health_check_response_format(self, client):
+        """Test that health check responses follow the expected format."""
+        # Test main health check
+        response = client.get('/api/dashboard/health')
+        data = json.loads(response.data)
+        
+        # Required fields
+        required_fields = ['service', 'status', 'timestamp', 'version', 'checks', 'performance_metrics', 'circuit_breakers']
+        for field in required_fields:
+            assert field in data, f"Missing required field: {field}"
+        
+        # Status should be valid
+        assert data['status'] in ['healthy', 'degraded', 'unhealthy']
+        
+        # Timestamp should be ISO format
+        datetime.fromisoformat(data['timestamp'].replace('Z', '+00:00'))
+        
+        # Test individual endpoints
+        endpoints = ['/api/dashboard/health/database', '/api/dashboard/health/cache', '/api/dashboard/health/components']
+        
+        for endpoint in endpoints:
+            response = client.get(endpoint)
+            data = json.loads(response.data)
+            
+            assert 'service' in data
+            assert 'status' in data
+            assert 'timestamp' in data
+            assert data['status'] in ['healthy', 'degraded', 'unhealthy']

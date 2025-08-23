@@ -169,14 +169,23 @@ class TestDashboardRoutes:
         assert response.status_code == 401
 
     def test_dashboard_summary_database_error(self, client, auth_headers, mock_user):
-        """Test dashboard summary with database error."""
+        """Test dashboard summary with database error - now handles gracefully with fallback."""
         with patch.object(get_supabase_client(), 'get_user_from_token', return_value=mock_user):
             with patch.object(get_supabase_client(), 'execute_query', return_value={'success': False, 'error': 'DB Error'}):
                 response = client.get('/api/dashboard/summary', headers=auth_headers)
                 
-                assert response.status_code == 500
+                # Enhanced implementation now handles database errors gracefully
+                # Returns 200 with fallback data structure instead of 500 error
+                assert response.status_code == 200
                 data = json.loads(response.data)
-                assert 'error' in data
+                
+                # Should have basic structure with empty/default values
+                assert 'total_experiments' in data
+                assert 'experiments_by_type' in data
+                assert 'experiments_by_status' in data
+                assert 'recent_activity' in data
+                assert 'failed_operations' in data
+                assert data['total_experiments'] == 0  # No experiments due to DB error
 
     def test_dashboard_charts_success(self, client, auth_headers, mock_user, sample_experiments, sample_results):
         """Test successful dashboard charts data retrieval."""

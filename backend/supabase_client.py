@@ -4,10 +4,14 @@ Provides connection management, authentication helpers, and error handling.
 """
 
 import os
+import time
 from typing import Optional, Dict, Any
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import logging
+
+from retry_logic import RetryableOperation, get_database_circuit_breaker
+from exceptions import DatabaseError, NetworkError, AuthenticationError
 
 # Load environment variables
 load_dotenv()
@@ -91,7 +95,7 @@ class SupabaseClient:
     
     def execute_query(self, table: str, query_type: str, **kwargs) -> Dict[str, Any]:
         """
-        Execute a database query with error handling.
+        Execute a database query with retry logic and circuit breaker.
         
         Args:
             table: Table name to query
@@ -101,6 +105,46 @@ class SupabaseClient:
         Returns:
             Query result or error information
         """
+        # Create retry operation with database circuit breaker
+        retry_operation = RetryableOperation(
+            max_retries=3,
+            base_delay=1.0,
+            max_delay=10.0,
+            circuit_breaker=get_database_circuit_breaker()
+        )
+        
+        try:
+            # Execute query with retry logic
+            result = retry_operation.execute(self._execute_single_query, table, query_type, **kwargs)
+            return result
+            
+        except Exception as e:
+            logger.error(f"Database query failed after retries: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e),
+                'data': None,
+                'error_type': type(e).__name__
+            }
+    
+    def _execute_single_query(self, table: str, query_type: str, **kwargs) -> Dict[str, Any]:
+        """
+        Execute a single database query without retry logic.
+        
+        Args:
+            table: Table name to query
+            query_type: Type of query ('select', 'insert', 'update', 'delete')
+            **kwargs: Query parameters
+            
+        Returns:
+            Query result
+            
+        Raises:
+            DatabaseError: For database-related errors
+            NetworkError: For network-related errors
+        """
+        start_time = time.time()
+        
         try:
             table_ref = self.client.table(table)
             
@@ -132,19 +176,34 @@ class SupabaseClient:
                 raise ValueError(f"Unsupported query type: {query_type}")
             
             response = query.execute()
+            response_time = time.time() - start_time
+            
+            logger.debug(f"Query executed successfully in {response_time:.3f}s: {table}.{query_type}")
+            
             return {
                 'success': True,
                 'data': response.data,
-                'count': getattr(response, 'count', None)
+                'count': getattr(response, 'count', None),
+                'response_time': response_time
             }
             
         except Exception as e:
-            logger.error(f"Database query failed: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e),
-                'data': None
-            }
+            response_time = time.time() - start_time
+            error_message = str(e).lower()
+            
+            # Classify error types for better retry logic
+            if any(keyword in error_message for keyword in ['connection', 'network', 'timeout', 'unreachable']):
+                logger.warning(f"Network error in query {table}.{query_type} after {response_time:.3f}s: {str(e)}")
+                raise NetworkError(f"Network error during {query_type} operation on {table}: {str(e)}")
+            elif any(keyword in error_message for keyword in ['authentication', 'unauthorized', 'token', 'auth']):
+                logger.error(f"Authentication error in query {table}.{query_type}: {str(e)}")
+                raise AuthenticationError(f"Authentication error during {query_type} operation: {str(e)}")
+            elif any(keyword in error_message for keyword in ['database', 'sql', 'constraint', 'foreign key']):
+                logger.error(f"Database error in query {table}.{query_type} after {response_time:.3f}s: {str(e)}")
+                raise DatabaseError(f"Database error during {query_type} operation on {table}: {str(e)}")
+            else:
+                logger.error(f"Unknown error in query {table}.{query_type} after {response_time:.3f}s: {str(e)}")
+                raise DatabaseError(f"Unknown error during {query_type} operation on {table}: {str(e)}")
 
 # Global instance
 supabase_client = SupabaseClient()

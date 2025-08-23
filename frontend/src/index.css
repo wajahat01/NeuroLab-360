@@ -405,45 +405,158 @@
     min-height: 24rem;
   }
 
-  /* Smooth Fade-in Transitions */
+  /* Smooth Fade-in Transitions with Consistent Timing */
   .fade-in-content {
-    animation: fadeInContent 0.3s ease-out forwards;
+    animation: fadeInContent 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
     opacity: 0;
+    will-change: opacity, transform;
   }
 
   .fade-in-delayed {
-    animation: fadeInContent 0.3s ease-out 0.1s forwards;
+    animation: fadeInContent 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.15s forwards;
     opacity: 0;
+    will-change: opacity, transform;
   }
 
   .fade-in-stagger-1 {
-    animation: fadeInContent 0.3s ease-out 0.1s forwards;
+    animation: fadeInContent 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.1s forwards;
     opacity: 0;
+    will-change: opacity, transform;
   }
 
   .fade-in-stagger-2 {
-    animation: fadeInContent 0.3s ease-out 0.2s forwards;
+    animation: fadeInContent 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.2s forwards;
     opacity: 0;
+    will-change: opacity, transform;
   }
 
   .fade-in-stagger-3 {
-    animation: fadeInContent 0.3s ease-out 0.3s forwards;
+    animation: fadeInContent 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.3s forwards;
     opacity: 0;
+    will-change: opacity, transform;
   }
 
   .fade-in-stagger-4 {
-    animation: fadeInContent 0.3s ease-out 0.4s forwards;
+    animation: fadeInContent 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.4s forwards;
     opacity: 0;
+    will-change: opacity, transform;
+  }
+
+  /* Fast fade-in for immediate content */
+  .fade-in-fast {
+    animation: fadeInContent 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    opacity: 0;
+    will-change: opacity, transform;
+  }
+
+  /* Slow fade-in for emphasis */
+  .fade-in-slow {
+    animation: fadeInContent 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    opacity: 0;
+    will-change: opacity, transform;
   }
 
   @keyframes fadeInContent {
     from {
       opacity: 0;
-      transform: translateY(8px);
+      transform: translateY(12px);
     }
     to {
       opacity: 1;
       transform: translateY(0);
+    }
+  }
+
+  /* Slide-in animations for different directions */
+  .slide-in-up {
+    animation: slideInUp 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    opacity: 0;
+    will-change: opacity, transform;
+  }
+
+  .slide-in-down {
+    animation: slideInDown 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    opacity: 0;
+    will-change: opacity, transform;
+  }
+
+  .slide-in-left {
+    animation: slideInLeft 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    opacity: 0;
+    will-change: opacity, transform;
+  }
+
+  .slide-in-right {
+    animation: slideInRight 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    opacity: 0;
+    will-change: opacity, transform;
+  }
+
+  @keyframes slideInUp {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideInDown {
+    from {
+      opacity: 0;
+      transform: translateY(-24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideInLeft {
+    from {
+      opacity: 0;
+      transform: translateX(-24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes slideInRight {
+    from {
+      opacity: 0;
+      transform: translateX(24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  /* Scale animations for emphasis */
+  .scale-in {
+    animation: scaleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    opacity: 0;
+    will-change: opacity, transform;
+  }
+
+  .scale-in-delayed {
+    animation: scaleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) 0.1s forwards;
+    opacity: 0;
+    will-change: opacity, transform;
+  }
+
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
     }
   }
 
@@ -456,6 +569,68 @@
     width: 100%;
     height: auto;
     min-height: inherit;
+  }
+
+  /* Reduced Motion Support - Accessibility Compliance */
+  @media (prefers-reduced-motion: reduce) {
+    .fade-in-content,
+    .fade-in-delayed,
+    .fade-in-stagger-1,
+    .fade-in-stagger-2,
+    .fade-in-stagger-3,
+    .fade-in-stagger-4,
+    .fade-in-fast,
+    .fade-in-slow,
+    .slide-in-up,
+    .slide-in-down,
+    .slide-in-left,
+    .slide-in-right,
+    .scale-in,
+    .scale-in-delayed {
+      animation: none !important;
+      opacity: 1 !important;
+      transform: none !important;
+    }
+
+    .loading-shimmer,
+    .animate-pulse,
+    .animate-spin,
+    .animate-bounce {
+      animation: none !important;
+    }
+
+    .transition-all,
+    .transition-smooth,
+    .hover-lift {
+      transition: none !important;
+    }
+  }
+
+  /* Animation Cleanup Classes */
+  .animation-fill-forwards {
+    animation-fill-mode: forwards;
+  }
+
+  .animation-fill-both {
+    animation-fill-mode: both;
+  }
+
+  .animation-paused {
+    animation-play-state: paused;
+  }
+
+  .animation-running {
+    animation-play-state: running;
+  }
+
+  /* Performance Optimized Animations */
+  .gpu-accelerated {
+    transform: translateZ(0);
+    will-change: transform, opacity;
+  }
+
+  .animation-cleanup {
+    will-change: auto;
   }
 
   /* Period Selector Stable Layout */

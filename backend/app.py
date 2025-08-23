@@ -12,6 +12,8 @@ from functools import wraps
 from typing import Optional, Dict, Any
 
 from supabase_client import get_supabase_client
+from validation_middleware import validation_middleware
+from cache_service import init_cache_service
 
 # Load environment variables
 load_dotenv()
@@ -31,6 +33,12 @@ def create_app() -> Flask:
     # CORS configuration
     CORS(app, origins=['http://localhost:3000', 'http://localhost:5173'], 
          supports_credentials=True)
+    
+    # Initialize validation middleware
+    validation_middleware.init_app(app)
+    
+    # Initialize cache service
+    cache_service = init_cache_service(app)
     
     # Initialize Supabase client
     supabase_client = get_supabase_client()

@@ -125,8 +125,8 @@ const Experiments = () => {
         filters={filters}
         onFiltersChange={updateFilters}
         onClearFilters={clearFilters}
-        sortBy={sortBy}
-        sortOrder={sortOrder}
+        sortBy={filters.sortBy}
+        sortOrder={filters.sortOrder}
         onSortChange={updateSorting}
         totalCount={experiments.length}
       />

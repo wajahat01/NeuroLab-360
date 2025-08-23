@@ -20,8 +20,8 @@ let performanceData = {
 
 // Performance thresholds
 const PERFORMANCE_THRESHOLDS = {
-  SLOW_RENDER: 16, // 16ms for 60fps
-  VERY_SLOW_RENDER: 50, // 50ms
+  SLOW_RENDER: 50, // 50ms - more lenient for development
+  VERY_SLOW_RENDER: 100, // 100ms
   COMPONENT_MOUNT_THRESHOLD: 100, // 100ms
   TRANSITION_THRESHOLD: 2000 // 2 seconds
 };

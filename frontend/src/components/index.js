@@ -21,9 +21,17 @@ export { default as ErrorBoundary } from './ErrorBoundary';
 export { default as DashboardErrorBoundary } from './DashboardErrorBoundary';
 export { default as DashboardErrorFallback } from './DashboardErrorFallback';
 export { 
-  PerformanceProfiler, 
   AppPerformanceMonitor, 
   DashboardPerformanceMonitor,
   LoginTransitionTracker,
-  withPerformanceMonitoring 
+  withPerformanceMonitoring,
+  usePerformanceMonitoring
 } from './PerformanceMonitor';
+export { 
+  default as SmoothTransition,
+  StaggeredContainer,
+  FadeTransition,
+  SlideTransition,
+  ScaleTransition,
+  DashboardTransition
+} from './SmoothTransition';

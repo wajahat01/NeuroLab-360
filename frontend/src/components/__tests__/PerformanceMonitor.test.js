@@ -1,12 +1,12 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { 
-  PerformanceProfiler,
   AppPerformanceMonitor,
   DashboardPerformanceMonitor,
   LoginTransitionTracker,
   withPerformanceMonitoring
 } from '../PerformanceMonitor';
+import { PerformanceProfiler } from '../../utils/performanceProfiler';
 import { clearPerformanceMetrics, getPerformanceMetrics } from '../../utils/performanceMonitor';
 
 // Mock the performance monitoring utilities

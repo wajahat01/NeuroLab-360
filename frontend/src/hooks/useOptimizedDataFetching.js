@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { enhancedCache } from './useEnhancedCache';
 import { useDataSync } from './useDataSync';
+import { supabase } from '../lib/supabase';
 
 /**
  * Optimized data fetching hook with proper loading state management
@@ -80,6 +81,7 @@ export const useOptimizedDataFetching = (endpoint, options = {}) => {
         'Content-Type': 'application/json'
       };
     } catch (error) {
+      console.warn('Authentication failed:', error.message);
       throw new Error('Authentication failed');
     }
   }, []);
@@ -196,7 +198,10 @@ export const useOptimizedDataFetching = (endpoint, options = {}) => {
         return; // Request was cancelled
       }
 
-      console.error(`Optimized fetch error for ${endpoint}:`, err);
+      // Only log non-auth errors to reduce console noise
+      if (!err.message.includes('Authentication failed')) {
+        console.error(`Optimized fetch error for ${endpoint}:`, err);
+      }
 
       // Retry logic for network errors
       if (retryCountRef.current < retry && (err.message.includes('fetch') || err.message.includes('network'))) {

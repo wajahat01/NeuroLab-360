@@ -4,6 +4,7 @@ import { useOptimizedDataFetching } from './useOptimizedDataFetching';
 import { enhancedCache } from './useEnhancedCache';
 import { useDataSync } from './useDataSync';
 import { getStorageItem, setStorageItem, STORAGE_KEYS } from '../utils/localStorage';
+import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 
 /**
