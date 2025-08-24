@@ -268,10 +268,12 @@ export const ErrorPage = ({
   );
 };
 
-export default {
+const ErrorPages = {
   NotFoundPage,
   ServerErrorPage,
   NetworkErrorPage,
   AccessDeniedPage,
   ErrorPage
 };
+
+export default ErrorPages;

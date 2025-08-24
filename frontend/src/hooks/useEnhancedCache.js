@@ -168,7 +168,6 @@ class EnhancedCache {
 
   // Get cache statistics
   getStats() {
-    const now = Date.now();
     const entries = Array.from(this.cache.entries());
     
     return {

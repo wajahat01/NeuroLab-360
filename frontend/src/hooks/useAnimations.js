@@ -28,14 +28,15 @@ export const useAnimations = () => {
 
   // Cleanup all animations on unmount
   useEffect(() => {
+    const currentRefs = animationRefs.current;
     return () => {
-      animationRefs.current.forEach(element => {
+      currentRefs.forEach(element => {
         if (element && element.style) {
           element.style.willChange = 'auto';
           element.style.animation = '';
         }
       });
-      animationRefs.current.clear();
+      currentRefs.clear();
     };
   }, []);
 
@@ -209,9 +210,10 @@ export const useAnimationTiming = () => {
 
   // Cleanup timeouts on unmount
   useEffect(() => {
+    const currentTimeouts = timeoutsRef.current;
     return () => {
-      timeoutsRef.current.forEach(timeout => clearTimeout(timeout));
-      timeoutsRef.current.clear();
+      currentTimeouts.forEach(timeout => clearTimeout(timeout));
+      currentTimeouts.clear();
     };
   }, []);
 

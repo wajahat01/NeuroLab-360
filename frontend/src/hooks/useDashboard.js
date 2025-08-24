@@ -4,7 +4,7 @@ import { useApiCache } from './useApiCache';
 import { useDataSync } from './useDataSync';
 import { useCleanup } from './useCleanup';
 import { getStorageItem, setStorageItem, STORAGE_KEYS } from '../utils/localStorage';
-import { API_CONFIG, ENDPOINTS, buildUrl } from '../config/api';
+import { supabaseApi } from '../services/supabaseApi';
 
 export const useDashboardSummary = () => {
   const { user } = useAuth();

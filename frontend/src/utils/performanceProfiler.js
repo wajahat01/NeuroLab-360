@@ -415,7 +415,7 @@ function generateRecommendations(metrics) {
   return recommendations;
 };
 
-export default {
+const PerformanceProfilerUtils = {
   withPerformanceProfiler,
   PerformanceProfiler,
   LoginTransitionTracker,
@@ -425,3 +425,5 @@ export default {
   generatePerformanceReport,
   onRenderCallback
 };
+
+export default PerformanceProfilerUtils;

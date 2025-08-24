@@ -21,7 +21,6 @@ export const SmoothTransition = forwardRef(({
   const elementRef = useRef(null);
   const {
     prefersReducedMotion,
-    registerElement,
     unregisterElement,
     applyFadeIn,
     applySlideIn,
@@ -122,10 +121,7 @@ export const StaggeredContainer = ({
   className = '',
   ...props
 }) => {
-  const { getStaggeredClasses } = useAnimations();
-  
   const childrenArray = React.Children.toArray(children);
-  const staggeredClasses = getStaggeredClasses(childrenArray.length);
 
   return (
     <div className={className} {...props}>

@@ -324,11 +324,7 @@ export const useOptimizedDataFetching = (endpoint, options = {}) => {
           
           // Show user-friendly toast
           toast.error('Please log in again to continue', {
-            duration: 5000,
-            action: {
-              label: 'Login',
-              onClick: () => window.location.href = '/login'
-            }
+            duration: 5000
           });
           
           updateCircuitBreaker(false);
@@ -447,18 +443,18 @@ export const useOptimizedDataFetching = (endpoint, options = {}) => {
 
       if (shouldRetry && isRetryableError) {
         retryCountRef.current++;
-        const retryDelay = errorInfo.retryAfter ? 
+        const currentRetryDelay = errorInfo.retryAfter ? 
           errorInfo.retryAfter * 1000 : 
           retryDelay * Math.pow(2, retryCountRef.current - 1); // Exponential backoff
         
         toast.loading(`Retrying... (${retryCountRef.current}/${retry})`, {
-          duration: retryDelay,
+          duration: currentRetryDelay,
           id: `retry-${endpoint}`
         });
         
         setTimeout(() => {
           fetchData(isBackground, forceRefresh);
-        }, retryDelay);
+        }, currentRetryDelay);
         return;
       }
 
@@ -582,7 +578,7 @@ export const useOptimizedDataFetching = (endpoint, options = {}) => {
         abortControllerRef.current.abort();
       }
     };
-  }, [enabled, user, endpoint, method, JSON.stringify(body), ...dependencies]);
+  }, [enabled, user, fetchData]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -793,7 +789,7 @@ export const useOptimizedDashboardData = () => {
       charts.refetch(force),
       recent.refetch(force)
     ]);
-  }, [summary.refetch, charts.refetch, recent.refetch]);
+  }, [summary, charts, recent]);
 
   // Intelligent retry for all dashboard data
   const intelligentRetryAll = useCallback((force = false) => {
@@ -802,14 +798,14 @@ export const useOptimizedDashboardData = () => {
       charts.intelligentRetry(force),
       recent.intelligentRetry(force)
     ]);
-  }, [summary.intelligentRetry, charts.intelligentRetry, recent.intelligentRetry]);
+  }, [summary, charts, recent]);
 
   // Preload all dashboard data
   const preloadAll = useCallback(() => {
     summary.preload();
     charts.preload();
     recent.preload();
-  }, [summary.preload, charts.preload, recent.preload]);
+  }, [summary, charts, recent]);
 
   return {
     summary,

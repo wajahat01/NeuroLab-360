@@ -18,7 +18,7 @@ import { useOptimizedDashboardData } from '../hooks/useOptimizedDataFetching';
 import { useEnhancedErrorHandling } from '../hooks/useEnhancedErrorHandling';
 import { useCachePreloader } from '../hooks/useEnhancedCache';
 import { useEntranceAnimations } from '../hooks/useAnimations';
-import { DashboardPerformanceMonitor, LoginTransitionTracker } from '../components/PerformanceMonitor';
+import { DashboardPerformanceMonitor } from '../components/PerformanceMonitor';
 import { usePerformanceTracking } from '../utils/performanceMonitor';
 
 const Dashboard = memo(() => {
@@ -46,11 +46,9 @@ const Dashboard = memo(() => {
     error: globalError,
     showErrorUI,
     handleError,
-    clearError,
-    retry
+    clearError
   } = useEnhancedErrorHandling({
     showToasts: true,
-    retainDataOnError: true,
     errorDisplayDelay: 500,
     autoRetry: true,
     maxRetries: 2
@@ -60,7 +58,7 @@ const Dashboard = memo(() => {
   const { preloadDashboardData } = useCachePreloader();
 
   // Coordinate entrance animations
-  const { isReady, shouldAnimate } = useEntranceAnimations([
+  const { isReady } = useEntranceAnimations([
     summary.data, 
     charts.data, 
     recent.data

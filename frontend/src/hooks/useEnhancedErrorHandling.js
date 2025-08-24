@@ -8,7 +8,6 @@ import toast from 'react-hot-toast';
 export const useEnhancedErrorHandling = (options = {}) => {
   const {
     showToasts = true,
-    retainDataOnError = true,
     errorDisplayDelay = 500,
     autoRetry = false,
     maxRetries = 2,
@@ -160,7 +159,7 @@ export const useEnhancedErrorHandling = (options = {}) => {
         userMessage: 'Retry failed. Please try again.' 
       });
     }
-  }, [updateState, handleError, onRetry, state.retryCount]);
+  }, [updateState, handleError, onRetry, state.retryCount, clearError]);
 
   // Clear error state
   const clearError = useCallback(() => {

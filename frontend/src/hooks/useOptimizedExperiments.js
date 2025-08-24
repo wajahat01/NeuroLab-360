@@ -102,6 +102,8 @@ export const useOptimizedExperiments = (options = {}) => {
         case 'delete':
           experimentsData = experimentsData.filter(exp => exp.id !== operation.data.id);
           break;
+        default:
+          break;
       }
     });
 
