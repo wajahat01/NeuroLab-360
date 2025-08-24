@@ -6,8 +6,9 @@ The NeuroLab 360 API is a RESTful service built with Flask that provides endpoin
 
 ## Base URL
 
-- **Development**: `http://localhost:5000`
-- **Production**: `https://your-production-domain.com`
+- **Development**: `http://localhost:5000/api`
+- **Production**: `https://your-production-domain.com/api`
+- **Supabase Direct**: `https://fdkjoykhsdwigwjtxdxa.supabase.co/rest/v1/`
 
 ## Authentication
 

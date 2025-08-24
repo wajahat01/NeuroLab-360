@@ -4,6 +4,7 @@ Main Flask app with CORS configuration, route registration, and error handling.
 """
 
 import os
+import time
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -130,11 +131,31 @@ def create_app() -> Flask:
     # Health check endpoint
     @app.route('/health', methods=['GET'])
     def health_check():
-        """Health check endpoint."""
-        return jsonify({
-            'status': 'healthy',
-            'message': 'NeuroLab 360 API is running'
-        })
+        """Health check endpoint with Supabase connection test."""
+        try:
+            # Test Supabase connection
+            supabase_client = get_supabase_client()
+            # Simple query to test connection
+            test_result = supabase_client.execute_query('experiments', 'select', limit=1)
+            
+            supabase_status = 'connected' if test_result.get('success') else 'error'
+            
+            return jsonify({
+                'status': 'healthy',
+                'message': 'NeuroLab 360 API is running',
+                'supabase': supabase_status,
+                'timestamp': time.time(),
+                'environment': os.getenv('FLASK_ENV', 'production')
+            })
+        except Exception as e:
+            return jsonify({
+                'status': 'degraded',
+                'message': 'NeuroLab 360 API is running with issues',
+                'supabase': 'error',
+                'error': str(e),
+                'timestamp': time.time(),
+                'environment': os.getenv('FLASK_ENV', 'production')
+            }), 503
     
     # API info endpoint
     @app.route('/api', methods=['GET'])
@@ -178,4 +199,7 @@ if __name__ == '__main__':
     host = os.getenv('HOST', '127.0.0.1')
     
     logger.info(f"Starting NeuroLab 360 API on {host}:{port}")
+    logger.info(f"Supabase URL: {os.getenv('SUPABASE_URL')}")
+    logger.info(f"Environment: {os.getenv('FLASK_ENV', 'production')}")
+    
     app.run(host=host, port=port, debug=app.config['DEBUG'])

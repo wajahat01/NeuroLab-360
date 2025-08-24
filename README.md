@@ -129,6 +129,7 @@ python app.py
 ```
 
 Backend will be available at `http://localhost:5000`
+API endpoints will be available at `http://localhost:5000/api`
 
 ### 5. Frontend Setup
 

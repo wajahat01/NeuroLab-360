@@ -4,8 +4,7 @@ import { useApiCache } from './useApiCache';
 import { useDataSync } from './useDataSync';
 import { useCleanup } from './useCleanup';
 import { getStorageItem, setStorageItem, STORAGE_KEYS } from '../utils/localStorage';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+import { API_CONFIG, ENDPOINTS, buildUrl } from '../config/api';
 
 export const useDashboardSummary = () => {
   const { user } = useAuth();
@@ -20,7 +19,7 @@ export const useDashboardSummary = () => {
     error,
     refetch
   } = useApiCache(
-    `${API_BASE_URL}/dashboard/summary`,
+    buildUrl(ENDPOINTS.DASHBOARD.SUMMARY),
     {
       enabled: !!user,
       onSuccess: (data) => {
@@ -59,7 +58,7 @@ export const useDashboardCharts = (period = '30d', experimentType = null) => {
     error,
     refetch
   } = useApiCache(
-    `${API_BASE_URL}/dashboard/charts?${params}`,
+    buildUrl(ENDPOINTS.DASHBOARD.CHARTS, { period, experiment_type }),
     {
       enabled: !!user,
       onSuccess: (data) => {
@@ -96,7 +95,7 @@ export const useRecentExperiments = (limit = 10, days = 7) => {
     error,
     refetch
   } = useApiCache(
-    `${API_BASE_URL}/dashboard/recent?${params}`,
+    buildUrl(ENDPOINTS.DASHBOARD.RECENT, { limit, days }),
     {
       enabled: !!user,
       onSuccess: (data) => {
