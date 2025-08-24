@@ -82,5 +82,9 @@
       "path": "./build/static/css/*.css",
       "maxSize": "50kb"
     }
-  ]
+  ],
+  "engines": {
+    "node": "18.x",
+    "npm": ">=8.0.0"
+  }
 }
