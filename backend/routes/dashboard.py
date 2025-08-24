@@ -20,6 +20,10 @@ from validation_middleware import (
 from data_validator import validator, sanitize_input, ValidationError
 from cache_service import get_cache_service
 from error_handler import error_handler
+from performance_monitor import (
+    performance_monitor, track_endpoint, database_operation_monitor, structured_logger
+)
+from degradation_service import get_degradation_service, with_graceful_degradation, maintenance_mode_check
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +32,9 @@ dashboard_bp = Blueprint('dashboard', __name__)
 
 # Get Supabase client
 supabase_client = get_supabase_client()
+
+# Get degradation service
+degradation_service = get_degradation_service()
 
 def require_auth(f):
     """Decorator to require authentication for protected routes."""
@@ -52,6 +59,10 @@ def require_auth(f):
 @validate_user_id()
 @validate_dashboard_summary()
 @error_handler.handle_exceptions
+@track_endpoint('dashboard_summary')
+@performance_monitor('dashboard.get_summary')
+@with_graceful_degradation('dashboard', 'dashboard_summary')
+@maintenance_mode_check('dashboard')
 def get_dashboard_summary():
     """
     Get experiment summary statistics for the dashboard with enhanced resilience.
@@ -300,6 +311,10 @@ def get_dashboard_summary():
 @validate_user_id()
 @validate_dashboard_charts()
 @error_handler.handle_exceptions
+@track_endpoint('dashboard_charts')
+@performance_monitor('dashboard.get_charts')
+@with_graceful_degradation('dashboard', 'dashboard_charts')
+@maintenance_mode_check('dashboard')
 def get_dashboard_charts():
     """
     Get data formatted for dashboard visualizations and charts with enhanced error recovery.
@@ -825,6 +840,10 @@ def _process_experiment_metrics(
 @validate_user_id()
 @validate_dashboard_recent()
 @error_handler.handle_exceptions
+@track_endpoint('dashboard_recent')
+@performance_monitor('dashboard.get_recent_experiments')
+@with_graceful_degradation('dashboard', 'recent_experiments')
+@maintenance_mode_check('dashboard')
 def get_recent_experiments():
     """
     Get recent experiment results for the dashboard with enhanced error handling and resilience.

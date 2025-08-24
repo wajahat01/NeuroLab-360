@@ -12,6 +12,7 @@ import logging
 
 from retry_logic import RetryableOperation, get_database_circuit_breaker
 from exceptions import DatabaseError, NetworkError, AuthenticationError
+from performance_monitor import database_operation_monitor, structured_logger
 
 # Load environment variables
 load_dotenv()
@@ -93,6 +94,7 @@ class SupabaseClient:
         """
         return user_id == resource_user_id
     
+    @database_operation_monitor('database_query')
     def execute_query(self, table: str, query_type: str, **kwargs) -> Dict[str, Any]:
         """
         Execute a database query with retry logic and circuit breaker.
@@ -178,7 +180,13 @@ class SupabaseClient:
             response = query.execute()
             response_time = time.time() - start_time
             
-            logger.debug(f"Query executed successfully in {response_time:.3f}s: {table}.{query_type}")
+            structured_logger.info(
+                f"Database query successful: {table}.{query_type}",
+                table=table,
+                query_type=query_type,
+                response_time_ms=round(response_time * 1000, 2),
+                rows_returned=len(response.data) if response.data else 0
+            )
             
             return {
                 'success': True,
@@ -193,16 +201,43 @@ class SupabaseClient:
             
             # Classify error types for better retry logic
             if any(keyword in error_message for keyword in ['connection', 'network', 'timeout', 'unreachable']):
-                logger.warning(f"Network error in query {table}.{query_type} after {response_time:.3f}s: {str(e)}")
+                structured_logger.warning(
+                    f"Network error in database query: {table}.{query_type}",
+                    table=table,
+                    query_type=query_type,
+                    response_time_ms=round(response_time * 1000, 2),
+                    error_type='NetworkError',
+                    error_message=str(e)
+                )
                 raise NetworkError(f"Network error during {query_type} operation on {table}: {str(e)}")
             elif any(keyword in error_message for keyword in ['authentication', 'unauthorized', 'token', 'auth']):
-                logger.error(f"Authentication error in query {table}.{query_type}: {str(e)}")
+                structured_logger.error(
+                    f"Authentication error in database query: {table}.{query_type}",
+                    table=table,
+                    query_type=query_type,
+                    error_type='AuthenticationError',
+                    error_message=str(e)
+                )
                 raise AuthenticationError(f"Authentication error during {query_type} operation: {str(e)}")
             elif any(keyword in error_message for keyword in ['database', 'sql', 'constraint', 'foreign key']):
-                logger.error(f"Database error in query {table}.{query_type} after {response_time:.3f}s: {str(e)}")
+                structured_logger.error(
+                    f"Database error in query: {table}.{query_type}",
+                    table=table,
+                    query_type=query_type,
+                    response_time_ms=round(response_time * 1000, 2),
+                    error_type='DatabaseError',
+                    error_message=str(e)
+                )
                 raise DatabaseError(f"Database error during {query_type} operation on {table}: {str(e)}")
             else:
-                logger.error(f"Unknown error in query {table}.{query_type} after {response_time:.3f}s: {str(e)}")
+                structured_logger.error(
+                    f"Unknown error in database query: {table}.{query_type}",
+                    table=table,
+                    query_type=query_type,
+                    response_time_ms=round(response_time * 1000, 2),
+                    error_type='UnknownError',
+                    error_message=str(e)
+                )
                 raise DatabaseError(f"Unknown error during {query_type} operation on {table}: {str(e)}")
 
 # Global instance

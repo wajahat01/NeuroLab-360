@@ -14,6 +14,7 @@ from typing import Optional, Dict, Any
 from supabase_client import get_supabase_client
 from validation_middleware import validation_middleware
 from cache_service import init_cache_service
+from performance_monitor import init_performance_monitoring, structured_logger
 
 # Load environment variables
 load_dotenv()
@@ -39,6 +40,9 @@ def create_app() -> Flask:
     
     # Initialize cache service
     cache_service = init_cache_service(app)
+    
+    # Initialize performance monitoring
+    init_performance_monitoring(app)
     
     # Initialize Supabase client
     supabase_client = get_supabase_client()
@@ -98,7 +102,12 @@ def create_app() -> Flask:
     @app.errorhandler(500)
     def internal_error(error):
         """Handle internal server errors."""
-        logger.error(f"Internal server error: {str(error)}")
+        structured_logger.error(
+            "Internal server error",
+            error_type=type(error).__name__,
+            error_message=str(error),
+            status_code=500
+        )
         return jsonify({
             'error': 'Internal server error',
             'message': 'An unexpected error occurred'
@@ -107,7 +116,12 @@ def create_app() -> Flask:
     @app.errorhandler(Exception)
     def handle_exception(error):
         """Handle all other exceptions."""
-        logger.error(f"Unhandled exception: {str(error)}")
+        structured_logger.error(
+            "Unhandled exception",
+            error_type=type(error).__name__,
+            error_message=str(error),
+            status_code=500
+        )
         return jsonify({
             'error': 'Internal server error',
             'message': 'An unexpected error occurred'
@@ -146,6 +160,13 @@ def create_app() -> Flask:
         logger.info("Dashboard blueprint registered")
     except ImportError:
         logger.warning("Dashboard blueprint not found - will be created in task 5")
+    
+    try:
+        from routes.service_management import service_mgmt_bp
+        app.register_blueprint(service_mgmt_bp, url_prefix='/api')
+        logger.info("Service management blueprint registered")
+    except ImportError:
+        logger.warning("Service management blueprint not found")
     
     return app
 
