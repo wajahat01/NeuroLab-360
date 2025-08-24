@@ -321,7 +321,7 @@ def validate_user_id():
                 
                 # Check JSON body
                 elif request.is_json:
-                    json_data = request.get_json()
+                    json_data = request.get_json(silent=True)
                     if json_data and 'user_id' in json_data:
                         user_id = json_data['user_id']
                 

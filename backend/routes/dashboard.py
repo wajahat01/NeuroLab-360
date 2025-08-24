@@ -10,6 +10,10 @@ from typing import Dict, List, Any, Optional
 import logging
 import time
 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from supabase_client import get_supabase_client
 from retry_logic import RetryableOperation, get_database_circuit_breaker, CircuitBreakerOpenError
 from exceptions import DatabaseError, NetworkError, AuthenticationError, PartialDataError

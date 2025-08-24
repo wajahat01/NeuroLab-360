@@ -94,14 +94,14 @@ class SupabaseClient:
         """
         return user_id == resource_user_id
     
-    @database_operation_monitor('database_query')
-    def execute_query(self, table: str, query_type: str, **kwargs) -> Dict[str, Any]:
+    def execute_query(self, table: str, query_type: str, user_token: str = None, **kwargs) -> Dict[str, Any]:
         """
         Execute a database query with retry logic and circuit breaker.
         
         Args:
             table: Table name to query
             query_type: Type of query ('select', 'insert', 'update', 'delete')
+            user_token: JWT token for authenticated operations
             **kwargs: Query parameters
             
         Returns:
@@ -116,8 +116,8 @@ class SupabaseClient:
         )
         
         try:
-            # Execute query with retry logic
-            result = retry_operation.execute(self._execute_single_query, table, query_type, **kwargs)
+            # Execute query directly without retry logic for debugging
+            result = self._execute_single_query(table, query_type, user_token, **kwargs)
             return result
             
         except Exception as e:
@@ -129,13 +129,14 @@ class SupabaseClient:
                 'error_type': type(e).__name__
             }
     
-    def _execute_single_query(self, table: str, query_type: str, **kwargs) -> Dict[str, Any]:
+    def _execute_single_query(self, table: str, query_type: str, user_token: str = None, **kwargs) -> Dict[str, Any]:
         """
         Execute a single database query without retry logic.
         
         Args:
             table: Table name to query
             query_type: Type of query ('select', 'insert', 'update', 'delete')
+            user_token: JWT token for authenticated operations
             **kwargs: Query parameters
             
         Returns:
@@ -148,7 +149,21 @@ class SupabaseClient:
         start_time = time.time()
         
         try:
-            table_ref = self.client.table(table)
+            logger.debug(f"Executing query: {query_type} on table {table}")
+            logger.debug(f"Client type: {type(self.client)}")
+            
+            # If user token is provided, create a new client with the token for authenticated operations
+            if user_token and query_type in ['insert', 'update', 'delete']:
+                # Create a new client with the user's token for authenticated operations
+                from supabase import create_client
+                import os
+                url = os.getenv('SUPABASE_URL')
+                key = os.getenv('SUPABASE_ANON_KEY')
+                auth_client = create_client(url, key)
+                auth_client.auth.set_session(user_token, user_token)  # Set the user's session
+                table_ref = auth_client.table(table)
+            else:
+                table_ref = self.client.table(table)
             
             if query_type == 'select':
                 query = table_ref.select(kwargs.get('columns', '*'))

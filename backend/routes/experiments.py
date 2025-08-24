@@ -11,6 +11,10 @@ from flask import Blueprint, request, jsonify
 from functools import wraps
 from typing import Dict, List, Any, Optional
 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from supabase_client import get_supabase_client
 
 # Create blueprint for experiments routes
@@ -251,6 +255,7 @@ def create_experiment():
         experiment_result = supabase_client.execute_query(
             'experiments',
             'insert',
+            user_token=request.headers.get('Authorization'),
             data=experiment_data
         )
         
@@ -276,6 +281,7 @@ def create_experiment():
         results_result = supabase_client.execute_query(
             'results',
             'insert',
+            user_token=request.headers.get('Authorization'),
             data=results_data
         )
         
@@ -284,6 +290,7 @@ def create_experiment():
             supabase_client.execute_query(
                 'experiments',
                 'delete',
+                user_token=request.headers.get('Authorization'),
                 filters=[{'column': 'id', 'value': experiment_id}]
             )
             return jsonify({'error': 'Failed to store experiment results'}), 500
@@ -292,6 +299,7 @@ def create_experiment():
         supabase_client.execute_query(
             'experiments',
             'update',
+            user_token=request.headers.get('Authorization'),
             data={'status': 'completed', 'updated_at': datetime.utcnow().isoformat()},
             filters=[{'column': 'id', 'value': experiment_id}]
         )
